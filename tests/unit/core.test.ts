@@ -67,7 +67,7 @@ describe("given names", () => {
     }
   });
 
-  it("never use words that judge, compare or rank", () => {
+  it("never use words that judge or compare people", () => {
     const banned = /streak|track|gamif|leader|rank|percentile|cohort|certif|licen|accredit|mark|best|top|first|last|winner|level|score|grade/i;
     for (const w of [...FIRST, ...SECOND]) expect(w).not.toMatch(banned);
   });

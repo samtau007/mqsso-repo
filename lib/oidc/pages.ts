@@ -19,7 +19,7 @@ body{background:var(--bg);color:var(--fg);font-family:Outfit,system-ui,sans-seri
 a{color:var(--lilac)}a:hover{color:var(--fg)}
 :focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 .page{min-height:100vh;max-width:440px;margin:0 auto;padding:52px 24px 28px;display:flex;flex-direction:column;gap:14px}
-.marks{display:flex;align-items:center;justify-content:center;gap:14px}
+.logos{display:flex;align-items:center;justify-content:center;gap:14px}
 .tile{width:44px;height:44px;border-radius:12px;background:var(--tile);border:1px solid var(--navy);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600;color:var(--fg)}
 .head{display:flex;flex-direction:column;gap:6px;text-align:center}
 h1{margin:0;font-size:24px;font-weight:600;letter-spacing:-.02em;line-height:1.2}
@@ -65,11 +65,11 @@ const ARROW = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" strok
 const CHECK = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#c9b6dc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>`;
 const CROSS = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9dadc6" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
 
-/** Muslim Quotient's mark, an arrow, and the platform's tile. Platforms register no logo yet, so the tile shows an initial. */
-function marks(clientName?: string): string {
-  if (!clientName) return `<div class="marks">${LOGO}</div>`;
+/** Muslim Quotient's logo, an arrow, and the platform's tile. Platforms register no logo yet, so the tile shows an initial. */
+function logos(clientName?: string): string {
+  if (!clientName) return `<div class="logos">${LOGO}</div>`;
   const initial = esc(Array.from(clientName.trim())[0]?.toUpperCase() ?? "?");
-  return `<div class="marks">${LOGO}${ARROW}<div class="tile" aria-hidden="true">${initial}</div></div>`;
+  return `<div class="logos">${LOGO}${ARROW}<div class="tile" aria-hidden="true">${initial}</div></div>`;
 }
 
 export function layout(title: string, body: string): string {
@@ -81,14 +81,14 @@ export function layout(title: string, body: string): string {
 }
 
 export function errorPage(title: string, html: string): string {
-  return layout(title, `${marks()}<div class="head"><h1>${esc(title)}</h1></div><div class="card">${html.replace(/<p>/g, '<p class="sub" style="text-align:left">')}</div>`);
+  return layout(title, `${logos()}<div class="head"><h1>${esc(title)}</h1></div><div class="card">${html.replace(/<p>/g, '<p class="sub" style="text-align:left">')}</div>`);
 }
 
 const err = (e?: string) => (e ? `<p class="err" role="alert">${esc(e)}</p>` : "");
 
 export function emailStep(o: { uid: string; clientName: string; email?: string; error?: string }): string {
   return layout("Sign in", `
-${marks(o.clientName)}
+${logos(o.clientName)}
 <div class="head">
   <h1>Continue to ${esc(o.clientName)} with Muslim Quotient</h1>
   <p class="sub">Sign in, or create your ID with the same code</p>
@@ -106,7 +106,7 @@ ${marks(o.clientName)}
 
 export function codeStep(o: { uid: string; email: string; clientName?: string; error?: string; sent?: boolean }): string {
   return layout("Enter your code", `
-${marks(o.clientName)}
+${logos(o.clientName)}
 <div class="head">
   <h1>Enter the code we sent</h1>
   <p class="sub">to <b>${esc(o.email)}</b></p>
@@ -154,7 +154,7 @@ export function consentStep(o: {
     : `Signed in as <b class="given">${esc(o.givenName)}</b> · a name that changes every 30 days`;
 
   return layout(`Allow ${o.clientName}`, `
-${marks(o.clientName)}
+${logos(o.clientName)}
 <div class="head">
   <h1>${esc(o.clientName)} would like to connect to your Muslim Quotient</h1>
   <p class="sub">${who}</p>
