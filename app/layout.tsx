@@ -7,7 +7,7 @@ const amiri = Amiri({ subsets: ["arabic"], weight: ["400"], variable: "--font-am
 
 export const metadata: Metadata = {
   title: "Muslim Quotient",
-  description: "Five questions, one on each pillar of Islam. Sign up, answer honestly about your own practice, and see where you stand today. Part of Mohasaba.",
+  description: "Muslim Quotient helps you grow as a Muslim. One private ID across the Muslim platforms you already use, and your learning, practice and reflection in one private place.",
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://muslimquotient.com"),
 };
 

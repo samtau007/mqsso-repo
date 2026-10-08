@@ -2,6 +2,8 @@
 
 8 October 2026 · Sami (TrueQ Technologies)
 
+Changes: 8 October 2026, decisions 2 to 4 settled (no questions on Muslim Quotient; Postmark for the relay; Mohasaba keeps Continue with Google for now).
+
 Phase 1 makes Muslim Quotient one private account across muslimquotient.com, istighfar.club and Mohasaba, with a "Sign up with Muslim Quotient" option inside both, and a dashboard that shows what each one adds. istighfar.club and Mohasaba connect exactly as any outside platform would, through the developer portal and the public developer guide, so every gap is found and fixed before a real partner arrives.
 
 Positioning for people: "Muslim Quotient helps you grow as a Muslim. Your direction, across every Muslim platform." For platforms and investors: "Central identity, distributed learning."
@@ -67,10 +69,10 @@ Five parts. We own and run the sign-in service; the rest sits on managed service
 | Part | Address | Built with | Why |
 | --- | --- | --- | --- |
 | Sign-in service | `id.muslimquotient.com` | Our own service built on node-oidc-provider (OpenID certified), running in Node next to the dashboard | We own it and pay no per-person fees; it follows OAuth 2.1 and OpenID Connect, so any platform's standard library connects; PKCE, renewing refresh tokens, a different private ID per platform and fine-grained permissions are built in. We build the sign-in and permission screens |
-| Muslim Quotient database | One new Supabase project, separate from Mohasaba | Postgres with row-level security | Keeps Muslim Quotient's records apart from each product's own data |
+| Muslim Quotient database | One new Supabase project, separate from Mohasaba (staging only: its own `mq` schema inside mohasaba-staging, see DECISIONS.md) | Postgres with row-level security | Keeps Muslim Quotient's records apart from each product's own data |
 | Record service | `api.muslimquotient.com` | Next.js route handlers on Vercel | Checks the platform's token and the person's permission, then saves the entry |
 | Dashboard and developer portal | `muslimquotient.com`, `developers.muslimquotient.com` | Next.js on Vercel | Same stack as Mohasaba, so one way of working |
-| Email | Login codes and relay | Resend for codes (already used by istighfar.club), plus a relay that forwards mail (decision 3) | Codes on their own sending subdomain; no open or click tracking |
+| Email | Login codes and relay | Resend for codes (already used by istighfar.club), plus a relay on Postmark inbound routing that forwards mail | Codes on their own sending subdomain; no open or click tracking |
 
 **How each product connects.** istighfar.club and Mohasaba each keep their own database and their own users table. They become ordinary clients of the sign-in service, exactly as an outside platform would. Each stores the private ID it receives (`mq_sub`) on its own user row. Nothing reads another product's database.
 
@@ -110,7 +112,7 @@ Five parts. We own and run the sign-in service; the rest sits on managed service
 
 ### D. Signs up directly on muslimquotient.com
 
-Same as A, steps 2 to 3, then the five Muslim Quotient questions, then the dashboard with suggested next steps: "Connect istighfar.club", "Take your first Mohasaba".
+Same as A, steps 2 to 3, then the dashboard with suggested next steps: "Connect istighfar.club", "Take your first Mohasaba". Muslim Quotient asks no questions of its own; the five entry questions belong to Mohasaba only.
 
 ### E. Disconnect or delete
 
@@ -147,7 +149,7 @@ The count of istighfar per day is not sent until TJ rules on whether Practice re
 
 ## 6. Changes to Mohasaba
 
-Mohasaba's sign-in page shows "Sign up with Muslim Quotient" above the existing email code option.
+Mohasaba's sign-in page shows "Sign up with Muslim Quotient" above the existing email code option. "Continue with Google" stays beside it for now, and is removed later, once existing accounts have linked.
 
 - Callback route `app.mohasaba.io/auth/mq/callback` stores `mq_sub` and the email on Mohasaba's own user row, then continues into the normal entry flow.
 - Settings gains "Connect Muslim Quotient" and "Disconnect".
@@ -186,7 +188,7 @@ Only ranges are sent. Single scores, individual answers and Ghaflah findings sta
 
 **Dashboard**
 
-- [ ] Overview: the range, this month by Learning, Practice and Reflection, journey
+- [ ] Overview: the range, this month by Learning, Practice and Reflection, journey. Reflection (and so the range) stays empty until Mohasaba is connected in M4
 - [ ] My goals with "Continue in" links to the right product
 - [ ] My platforms: connect, see what each added, disconnect, remove what it added
 - [ ] Prayer settings and language, set once
@@ -292,7 +294,7 @@ Owning sign-in means that when `id.muslimquotient.com` is down, every connected 
 | Challenge | What we do about it |
 | --- | --- |
 | Big ad-funded apps will not send data outward | Start with mission-driven apps and the long tail; approach big apps last, with Discover as the reason |
-| The dashboard is empty until platforms connect | Five questions, goals and our own three products carry the first months; be honest about low return visits until then |
+| The dashboard is empty until platforms connect | Goals and our own three products carry the first months; be honest about low return visits until then |
 | A central record of religious practice is a target, legally and politically | Email in a separate encrypted vault, data minimisation, no advertising, DPDP and GDPR followed, option to keep some data on the device only |
 | Fake platforms and inflated entries | Manual approval, rate limits, attestation, anomaly checks, and removal with users told |
 | The name "Quotient" sounds like a score | Ranges only, everywhere; TJ's view on the name; trademark check |
@@ -309,7 +311,7 @@ About nine weeks of work with Claude Code, scheduled so none of it delays Mohasa
 | --- | --- | --- | --- |
 | M0 Decisions | 1 | Postgres project created, domains set up | Decisions 2 to 4 below are made |
 | M1 Sign-in service | 2–3 | `id.muslimquotient.com` built on node-oidc-provider with email code, permission screen and given name, plus a basic developer portal to register platforms | A test platform registers in the portal, follows the developer guide, and signs a person in |
-| M2 muslimquotient.com | 3–4 | Starter project moved onto the sign-in service; five questions; basic dashboard | Sign up on muslimquotient.com works end to end |
+| M2 muslimquotient.com | 3–4 | Starter project moved onto the sign-in service; basic dashboard | Sign up on muslimquotient.com works end to end |
 | M3 istighfar.club | 4–5 | Button on web and extension, linking and merging, daily Practice entries, history import | An existing istighfar.club user links and sees days kept in the dashboard |
 | M4 Mohasaba | 5–6 | Button on sign-in, linking and merging, Reflection ranges after sittings | A sitting result appears as a range in the dashboard |
 | M5 Dashboard v1 | 6–8 | Overview, Goals, My platforms, Privacy (with merge and relays), Prayer settings | All screens in the design work with real data |
@@ -329,7 +331,7 @@ One repository per product. Give Claude Code this document and the developer gui
 4. Build the given-name generator and the 30-day rotation job.
 5. Build the dashboard screens from the design canvas, including merge accounts and the relays list under Privacy.
 6. Build notice sending to clients, signed with each client's secret, and the basic developer portal: register a platform, set redirect addresses and notice address, choose server or device sending, get keys.
-7. Build the email relay (decision 3) and the status page.
+7. Build the email relay on Postmark inbound routing, and the status page.
 
 **istighfar-club**
 
@@ -371,9 +373,9 @@ One repository per product. Give Claude Code this document and the developer gui
 **Decisions needed before M1**
 
 - [x] 1. Settled: our own sign-in service on node-oidc-provider, with Postgres in Supabase used only as the database. Ory Hydra is the fallback if relying on one main maintainer becomes a concern
-- [ ] 2. Are the five Muslim Quotient questions Muslim Quotient's own, or Mohasaba's entry questions shown on Muslim Quotient?
-- [ ] 3. Email relay service (Postmark or Mailgun inbound routing)
-- [ ] 4. Does Mohasaba keep "Continue with Google" beside Muslim Quotient?
+- [x] 2. Settled: the five questions belong to Mohasaba only. Muslim Quotient shows no questions at all, now or later
+- [x] 3. Settled: the email relay runs on Postmark
+- [x] 4. Settled: Mohasaba keeps "Continue with Google" for now; Sign in with Muslim Quotient is added beside it in M4, and Google is removed later, once existing accounts have linked
 - [ ] 5. TJ: whether Practice may record counts, or only days kept
 - [ ] 6. Will the record format and sign-in rules be published as an open standard? Decide before the first partner conversation (Sami and TJ)
 - [ ] 7. Trademark search for Muslim Quotient, and TJ's view on the word Quotient

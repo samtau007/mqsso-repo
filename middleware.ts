@@ -1,53 +1,47 @@
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PROTECTED = ["/questions", "/result"];
-const SRC_PARAMS = ["ref", "utm_source", "utm_medium", "utm_campaign"];
+// One deployment serves several hosts:
+//   id.muslimquotient.com          sign-in service   -> pages/api/id
+//   developers.muslimquotient.com  developer portal  -> app/developers
+//   muslimquotient.com             website and dashboard
+// No cookies are set here; no visitor tracking.
 
-export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({ request });
+function hostOf(origin: string | undefined, fallback: string) {
+  try {
+    return new URL(origin || fallback).host;
+  } catch {
+    return fallback;
+  }
+}
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
-        },
-      },
-    }
-  );
+const ID_HOST = hostOf(process.env.MQ_ID_ORIGIN, "https://id.muslimquotient.com");
+const DEV_HOST = hostOf(process.env.MQ_DEVELOPERS_ORIGIN, "https://developers.muslimquotient.com");
 
-  const { data: { user } } = await supabase.auth.getUser();
-  const path = request.nextUrl.pathname;
+const notFound = () => new NextResponse("Not found", { status: 404 });
 
-  if (!user && PROTECTED.some((p) => path.startsWith(p))) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/signup";
-    return NextResponse.redirect(url);
+export function middleware(request: NextRequest) {
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
+  const url = request.nextUrl.clone();
+  const path = url.pathname;
+
+  if (path.startsWith("/fonts/")) return NextResponse.next();
+
+  if (host === ID_HOST) {
+    url.pathname = path === "/" ? "/api/id" : `/api/id${path}`;
+    return NextResponse.rewrite(url);
   }
 
-  // First-touch attribution. TODO (see CLAUDE.md step 4): save into mq_entries.source.
-  if (!request.cookies.get("mq_src")) {
-    const src: Record<string, string> = {};
-    SRC_PARAMS.forEach((k) => {
-      const v = request.nextUrl.searchParams.get(k);
-      if (v) src[k] = v;
-    });
-    if (Object.keys(src).length) {
-      response.cookies.set("mq_src", JSON.stringify(src), { maxAge: 60 * 60 * 24 * 90, path: "/" });
-    }
+  if (host === DEV_HOST) {
+    if (path.startsWith("/api/") || path.startsWith("/developers")) return notFound();
+    url.pathname = path === "/" ? "/developers" : `/developers${path}`;
+    return NextResponse.rewrite(url);
   }
 
-  return response;
+  // The website must not answer for the other hosts' routes.
+  if (path.startsWith("/api/id") || path.startsWith("/developers")) return notFound();
+  return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.svg$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

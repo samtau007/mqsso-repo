@@ -1,6 +1,6 @@
 # Muslim Quotient Developer Guide
 
-Version 1 · 8 October 2026 · draft for early partners. Addresses marked as examples will be confirmed before launch.
+Version 1.1 · 8 October 2026 · draft for early partners. Addresses marked as examples will be confirmed before launch. Changes are listed at the end.
 
 Add "Sign in with Muslim Quotient" to your platform using standard OpenID Connect, then bring your existing users across without losing their accounts or their history.
 
@@ -21,7 +21,9 @@ The person's other platforms and their record never leave Muslim Quotient. You r
 
 Muslim Quotient is a standard OpenID Connect provider, so any sign-in library you already use (Auth.js, Passport, AppAuth, Firebase custom OIDC) works without special code.
 
-1. **Register your platform** in the developer portal (example address: `developers.muslimquotient.com`). Give your name, website, a short description, your redirect address, your notice address, and whether you send entries from a server, from devices, or both. You receive a `client_id` and a `client_secret`. Platforms are approved before they go live.
+1. **Register your platform** in the developer portal (example address: `developers.muslimquotient.com`). Give your name, website, a short description, your redirect addresses, your notice address, how your platform signs in, and whether you send entries from a server, from devices, or both. All your redirect addresses must be on one host; register a separate platform for each host. You receive a `client_id`, a `client_secret` (server sign-in only) and a notice signing secret. Secrets are shown once; you can rotate them in the portal. Platforms are approved before they go live, and cannot sign anyone in until then.
+   - **From a server**: your server keeps the `client_secret`.
+   - **From a browser extension, or a mobile or desktop client without a server**: no secret; PKCE protects the exchange. Notices need a server, so the notice address is optional here.
 2. **Add the button.** Use the official button from the portal: white on dark screens, night blue on light screens, label "Sign in with Muslim Quotient".
 3. **Send the person to Muslim Quotient** with the permissions you need:
 
@@ -45,7 +47,11 @@ Content-Type: application/x-www-form-urlencoded
 grant_type=authorization_code&code=CODE&redirect_uri=...&client_id=...&client_secret=...&code_verifier=PKCE_VERIFIER
 ```
 
+You may send the secret in the body, as above, or as HTTP Basic authentication; both work. Without a server, send no secret.
+
 5. **Read the person's ID** from the `sub` value in the ID token. Store it against your user. That is the only identifier you will ever receive for this person.
+
+   The token response also carries a `refresh_token`. Every time you use it you receive a new one, and the one you used stops working, so always keep the newest. Access tokens last one hour.
 
 ```json
 {
@@ -252,4 +258,9 @@ Send the checklist from the developer portal. Review takes up to 10 working days
 - [ ] The final addresses, rate limits, import limits and review time
 - [ ] Whether `mq.name` is offered, or platforms get no name at all
 - [ ] Minimum circle size: 30 is carried over from Mohasaba
-- [ ] Which service runs the email relay, and what happens when a person switches a relay off
+- [ ] What happens when a person switches a relay off (the relay runs on Postmark)
+
+## Changes
+
+- **1.1 · 8 October 2026.** Registration asks how your platform signs in (server, or extension or client without a server); redirect addresses must be on one host; secrets are shown once and can be rotated. The token endpoint accepts the secret in the body or as HTTP Basic. Refresh tokens are described: replaced on every use. The relay service is settled (Postmark).
+- **1 · 8 October 2026.** First draft.

@@ -1,4 +1,4 @@
-import Link from "next/link";
+const DEVELOPERS = (process.env.MQ_DEVELOPERS_ORIGIN || "https://developers.muslimquotient.com").replace(/\/$/, "");
 
 // Landing page ported from the Muslim Quotient ID design canvas (Landing artboard). Solid colours only.
 export default function Home() {
@@ -6,12 +6,13 @@ export default function Home() {
     <div style={{ background: "#0c121d", color: "#ffffff", fontFamily: "var(--font-outfit), Outfit, system-ui, sans-serif", overflow: "hidden" }}>
     
       <header style={{ maxWidth: "1320px", margin: "0 auto", paddingInline: "32px", paddingBlock: "26px", display: "flex", alignItems: "center", gap: "24px", flexWrap: "wrap" }}>
-        <a href="#" style={{ display: "flex", alignItems: "center", gap: "12px", textDecoration: "none", color: "#ffffff" }}><svg width="36" height="36" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="34" fill="none" stroke="#3a4c6b" strokeWidth="14"></circle><path d="M50 16 A34 34 0 0 0 50 84" fill="none" stroke="#8a6ca6" strokeWidth="14"></path><rect x="44" y="10" width="12" height="12" rx="2.5" fill="#ffffff" transform="rotate(45 50 16)"></rect></svg><span style={{ fontSize: "20px", fontWeight: "700", letterSpacing: "-0.03em" }}>Muslim Quotient</span></a>
+        <a href="/" style={{ display: "flex", alignItems: "center", gap: "12px", textDecoration: "none", color: "#ffffff" }}><svg width="36" height="36" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="34" fill="none" stroke="#3a4c6b" strokeWidth="14"></circle><path d="M50 16 A34 34 0 0 0 50 84" fill="none" stroke="#8a6ca6" strokeWidth="14"></path><rect x="44" y="10" width="12" height="12" rx="2.5" fill="#ffffff" transform="rotate(45 50 16)"></rect></svg><span style={{ fontSize: "20px", fontWeight: "700", letterSpacing: "-0.03em" }}>Muslim Quotient</span></a>
         <nav aria-label="Main" style={{ marginLeft: "auto", display: "flex", gap: "28px", flexWrap: "wrap", alignItems: "center", fontSize: "15px" }}>
           <a href="#model" style={{ textDecoration: "none", color: "#9dadc6" }}>The idea</a>
           <a href="#how" style={{ textDecoration: "none", color: "#9dadc6" }}>How it works</a>
           <a href="#platforms" style={{ textDecoration: "none", color: "#9dadc6" }}>For platforms</a>
-          <Link href="/signup" style={{ textDecoration: "none", color: "#0c121d", background: "#c9b6dc", borderRadius: "999px", padding: "11px 20px", fontWeight: "600" }}>Create your ID</Link>
+          <a href="/signin" style={{ textDecoration: "none", color: "#ffffff" }}>Sign in</a>
+          <a href="/signup" style={{ textDecoration: "none", color: "#0c121d", background: "#c9b6dc", borderRadius: "999px", padding: "11px 20px", fontWeight: "600" }}>Create your ID</a>
         </nav>
       </header>
     
@@ -24,7 +25,7 @@ export default function Home() {
           <div style={{ flex: "1 1 300px", minWidth: "0", maxWidth: "380px", display: "flex", flexDirection: "column", gap: "22px", paddingBottom: "14px" }}>
             <p style={{ margin: "0", fontSize: "19px", fontWeight: "300", lineHeight: "1.55", color: "#dfe6f0" }}>Muslim Quotient helps you grow as a Muslim. Sign in once on the Qur’an, hadith and learning platforms you already use, set where you are heading, and see your learning, practice and reflection in one private place.</p>
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-              <Link href="/signup" style={{ textDecoration: "none", background: "#ffffff", color: "#0c121d", borderRadius: "999px", padding: "16px 26px", fontWeight: "600", fontSize: "16px" }}>Create your Muslim Quotient</Link>
+              <a href="/signup" style={{ textDecoration: "none", background: "#ffffff", color: "#0c121d", borderRadius: "999px", padding: "16px 26px", fontWeight: "600", fontSize: "16px" }}>Create your Muslim Quotient</a>
               <a href="#how" style={{ textDecoration: "none", color: "#ffffff", borderRadius: "999px", padding: "16px 8px", fontSize: "15px" }}>How it works →</a>
             </div>
             <span style={{ fontSize: "13px", color: "#9dadc6" }}>Free. Only your email, and you choose which platforms see it.</span>
@@ -115,7 +116,7 @@ export default function Home() {
           </div>
           <div style={{ gridColumn: "span 2", gridRow: "span 1", background: "#ffffff", color: "#0c121d", borderRadius: "32px", padding: "26px", display: "flex", flexDirection: "column", justifyContent: "space-between", minWidth: "0" }}><span style={{ fontSize: "26px", fontWeight: "800", letterSpacing: "-0.03em" }}>Practice</span><span style={{ fontSize: "14px", color: "#5a6472" }}>Daily istighfar kept on 22 days. Seen only by you.</span></div>
           <div style={{ gridColumn: "span 2", gridRow: "span 2", background: "#8a6ca6", color: "#ffffff", borderRadius: "32px", padding: "26px", display: "flex", flexDirection: "column", justifyContent: "space-between", gap: "16px", minWidth: "0" }}><span style={{ fontSize: "26px", fontWeight: "800", letterSpacing: "-0.03em" }}>Reflection</span><div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ fontSize: "64px", fontWeight: "800", letterSpacing: "-0.05em", lineHeight: "1" }}>4–5</span><span style={{ fontSize: "14px" }}>Worship, from Mohasaba. Always a range. No one is ranked.</span></div></div>
-          <div style={{ gridColumn: "span 4", gridRow: "span 1", background: "#0f1622", border: "1px dashed #3a4c6b", borderRadius: "32px", padding: "26px 30px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "18px", minWidth: "0" }}><div style={{ flex: "1 1 260px", display: "flex", flexDirection: "column", gap: "6px" }}><span style={{ fontSize: "24px", fontWeight: "700", letterSpacing: "-0.02em" }}>Goals that open the right door</span><span style={{ fontSize: "14px", color: "#9dadc6" }}>Set where you are heading. Muslim Quotient holds no content; it takes you to the platform where the work happens.</span></div><Link href="/signup" style={{ textDecoration: "none", color: "#0c121d", background: "#c9b6dc", borderRadius: "999px", padding: "12px 20px", fontWeight: "600", fontSize: "14px" }}>See goals</Link></div>
+          <div style={{ gridColumn: "span 4", gridRow: "span 1", background: "#0f1622", border: "1px dashed #3a4c6b", borderRadius: "32px", padding: "26px 30px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "18px", minWidth: "0" }}><div style={{ flex: "1 1 260px", display: "flex", flexDirection: "column", gap: "6px" }}><span style={{ fontSize: "24px", fontWeight: "700", letterSpacing: "-0.02em" }}>Goals that open the right door</span><span style={{ fontSize: "14px", color: "#9dadc6" }}>Set where you are heading. Muslim Quotient holds no content; it takes you to the platform where the work happens.</span></div><a href="/signup" style={{ textDecoration: "none", color: "#0c121d", background: "#c9b6dc", borderRadius: "999px", padding: "12px 20px", fontWeight: "600", fontSize: "14px" }}>See goals</a></div>
         </div>
       </section>
     
@@ -135,10 +136,10 @@ export default function Home() {
             <span style={{ fontSize: "12px", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: "600" }}>For platforms</span>
             <h2 style={{ margin: "0", fontSize: "clamp(36px, 4.6vw, 64px)", fontWeight: "800", letterSpacing: "-0.05em", lineHeight: "0.95" }}>Add one button.<br />Keep your users.</h2>
             <p style={{ margin: "0", fontSize: "17px", lineHeight: "1.6", maxWidth: "560px" }}>“Sign in with Muslim Quotient” uses the same standard as Google and Apple. Your users arrive with their settings ready, and every goal they set sends them back to you.</p>
-            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}><a href="#" style={{ textDecoration: "none", background: "#0c121d", color: "#ffffff", borderRadius: "999px", padding: "15px 24px", fontWeight: "600", fontSize: "15px" }}>Read the developer guide</a><a href="#" style={{ textDecoration: "none", color: "#0c121d", border: "1.5px solid #0c121d", borderRadius: "999px", padding: "14px 22px", fontWeight: "500", fontSize: "15px" }}>Apply to connect</a></div>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}><a href={`${DEVELOPERS}/guide`} style={{ textDecoration: "none", background: "#0c121d", color: "#ffffff", borderRadius: "999px", padding: "15px 24px", fontWeight: "600", fontSize: "15px" }}>Read the developer guide</a><a href={DEVELOPERS} style={{ textDecoration: "none", color: "#0c121d", border: "1.5px solid #0c121d", borderRadius: "999px", padding: "14px 22px", fontWeight: "500", fontSize: "15px" }}>Apply to connect</a></div>
           </div>
           <div style={{ flex: "2 1 380px", minWidth: "0", background: "#0c121d", color: "#ffffff", borderRadius: "28px", padding: "26px", transform: "rotate(2.5deg)", display: "flex", flexDirection: "column", gap: "16px" }}>
-            <Link href="/signup" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", height: "54px", borderRadius: "999px", background: "#ffffff", color: "#2c3a52", textDecoration: "none", fontWeight: "600", fontSize: "15px" }}><svg width="22" height="22" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="34" fill="none" stroke="#3a4c6b" strokeWidth="16"></circle><path d="M50 16 A34 34 0 0 0 50 84" fill="none" stroke="#8a6ca6" strokeWidth="16"></path></svg>Sign in with Muslim Quotient</Link>
+            <a href="/signup" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", height: "54px", borderRadius: "999px", background: "#ffffff", color: "#2c3a52", textDecoration: "none", fontWeight: "600", fontSize: "15px" }}><svg width="22" height="22" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="34" fill="none" stroke="#3a4c6b" strokeWidth="16"></circle><path d="M50 16 A34 34 0 0 0 50 84" fill="none" stroke="#8a6ca6" strokeWidth="16"></path></svg>Sign in with Muslim Quotient</a>
             <pre style={{ margin: "0", background: "#18212f", borderRadius: "16px", padding: "16px", fontFamily: "ui-monospace, Menlo, monospace", fontSize: "13px", color: "#c9b6dc", overflowX: "auto", whiteSpace: "pre" }}>{`GET id.muslimquotient.com/authorize
       ?client_id=YOUR_ID
       &scope=openid mq.record.learning`}</pre>
@@ -161,7 +162,7 @@ export default function Home() {
       <section style={{ maxWidth: "1320px", margin: "0 auto", paddingInline: "32px", paddingBlock: "40px 100px" }}>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: "32px", justifyContent: "space-between" }}>
           <h2 style={{ margin: "0", fontSize: "clamp(52px, 8.6vw, 136px)", fontWeight: "800", letterSpacing: "-0.06em", lineHeight: "0.86" }}>Start with<br /><span style={{ color: "#c9b6dc" }}>one private ID.</span></h2>
-          <Link href="/signup" style={{ textDecoration: "none", background: "#ffffff", color: "#0c121d", borderRadius: "999px", padding: "20px 34px", fontWeight: "600", fontSize: "17px", marginBottom: "14px" }}>Create your Muslim Quotient</Link>
+          <a href="/signup" style={{ textDecoration: "none", background: "#ffffff", color: "#0c121d", borderRadius: "999px", padding: "20px 34px", fontWeight: "600", fontSize: "17px", marginBottom: "14px" }}>Create your Muslim Quotient</a>
         </div>
       </section>
     

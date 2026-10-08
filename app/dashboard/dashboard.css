@@ -1,0 +1,42 @@
+/* Dashboard, from docs/design/Dashboard.html. Solid colours only. */
+.d-page{min-height:100vh;background:#0c121d;color:#fff}
+.d-head{border-bottom:1px solid #1f2a3c}
+.d-head-in{max-width:1320px;margin:0 auto;padding:18px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+@media (min-width:600px){.d-head-in{padding-inline:28px}}
+.d-brand{display:flex;align-items:center;gap:12px;text-decoration:none;color:#fff;font-size:18px;font-weight:700;letter-spacing:-.02em}
+.d-who{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:14px;color:#9dadc6}
+.d-who b{color:#fff;font-weight:600}
+.d-who span{color:#c9b6dc}
+.d-out{background:none;border:1px solid #2c3a52;color:#fff;border-radius:999px;padding:8px 16px;font:inherit;font-size:14px;cursor:pointer}
+.d-body{max-width:1320px;margin:0 auto;padding:32px 16px 64px;display:flex;flex-direction:column;gap:24px}
+@media (min-width:600px){.d-body{padding-inline:28px}}
+.d-row{display:flex;flex-wrap:wrap;gap:24px;align-items:stretch}
+.d-card{background:#18212f;border:1px solid #2c3a52;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:10px;min-width:0}
+@media (min-width:600px){.d-card{padding:28px}}
+.d-label{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#9dadc6;font-weight:500}
+.d-range{font-size:72px;font-weight:700;letter-spacing:-.05em;line-height:1;margin-top:10px}
+.d-range small{font-size:18px;color:#9dadc6;font-weight:500;letter-spacing:0;margin-left:8px}
+.d-muted{font-size:14px;color:#9dadc6;margin:0;line-height:1.5}
+.d-empty{font-size:20px;font-weight:600;letter-spacing:-.01em;margin:10px 0 0;color:#c9b6dc}
+.d-line{display:flex;justify-content:space-between;gap:12px;font-size:15px}
+.d-line span:first-child{color:#9dadc6}
+.d-card h2{margin:0;font-size:22px;font-weight:600;letter-spacing:-.02em}
+.d-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:760px){.d-grid{grid-template-columns:minmax(0,1fr)}}
+.d-part{background:#0f1622;border:1px solid #2c3a52;border-radius:18px;padding:20px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.d-part.reflect{border-color:#8a6ca6}
+.d-ar{font-family:var(--font-amiri),Amiri,serif;font-size:24px;color:#9dadc6}
+.d-part.reflect .d-ar{color:#c9b6dc}
+.d-part b{font-weight:600;font-size:17px}
+.d-item{display:flex;flex-direction:column;gap:2px;padding-top:10px;border-top:1px solid #2c3a52}
+.d-item span:first-child{font-size:14px;color:#dfe6f0}
+.d-item span:last-child{font-size:12px;color:#9dadc6}
+.d-plat{display:flex;align-items:center;gap:14px;padding:14px 0;border-top:1px solid #2c3a52;flex-wrap:wrap}
+.d-tile{width:40px;height:40px;border-radius:12px;background:#24314a;border:1px solid #3a4c6b;display:flex;align-items:center;justify-content:center;font-weight:600}
+.d-plat div{flex:1;min-width:160px;display:flex;flex-direction:column}
+.d-plat div span:first-child{font-weight:600}
+.d-plat div span:last-child{font-size:13px;color:#9dadc6}
+.d-tag{font-size:12px;color:#c9b6dc;border:1px solid #8a6ca6;border-radius:999px;padding:4px 10px}
+.d-btn{align-self:flex-start;text-decoration:none;background:#fff;color:#2c3a52;border-radius:999px;padding:12px 22px;font-weight:600;font-size:14px}
+.d-btn.line{background:transparent;color:#fff;border:1px solid #2c3a52}
+.d-steps{display:flex;gap:10px;flex-wrap:wrap}

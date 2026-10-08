@@ -1,0 +1,59 @@
+/* Developer portal. The design canvas has no portal screens; this uses its tokens and parts
+   (cards, pill buttons, labels). Solid colours only. */
+.p-page{min-height:100vh;display:flex;flex-direction:column;background:#0c121d;color:#fff}
+.p-wrap{width:100%;max-width:880px;margin:0 auto;padding-inline:16px}
+@media (min-width:600px){.p-wrap{padding-inline:28px}}
+.p-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-block:22px;border-bottom:1px solid #2c3a52}
+.p-brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:#fff;font-weight:700;letter-spacing:-.03em;font-size:17px}
+.p-brand small{font-weight:500;color:#9dadc6;letter-spacing:0;font-size:14px}
+.p-nav{margin-left:auto;display:flex;gap:18px;align-items:center;font-size:14px}
+.p-nav a,.p-nav button{color:#9dadc6;text-decoration:none;background:none;border:0;font:inherit;cursor:pointer;padding:0}
+.p-nav a:hover,.p-nav button:hover{color:#fff}
+.p-main{flex:1;padding-block:32px 64px}
+.p-main h1{font-size:clamp(26px,4vw,34px);letter-spacing:-.03em;line-height:1.15;margin:0}
+.p-main h2{font-size:18px;letter-spacing:-.01em;margin:32px 0 0}
+.p-lede{color:#9dadc6;margin:10px 0 0;max-width:620px}
+.p-card{background:#18212f;border:1px solid #2c3a52;border-radius:20px;padding:22px;margin-top:18px}
+.p-narrow{max-width:440px}
+.p-field{display:grid;gap:6px;margin-top:18px}
+.p-field label,.p-field legend{font-size:13px;color:#9dadc6}
+.p-field small{font-size:12px;color:#9dadc6}
+.p-input{width:100%;background:#0f1622;border:1px solid #2c3a52;border-radius:12px;padding:12px 14px;color:#fff;font:inherit;font-size:15px}
+.p-input:focus{outline:none;border-color:#c9b6dc}
+textarea.p-input{min-height:84px;resize:vertical}
+.p-input.code{letter-spacing:.4em;text-align:center;font-size:22px}
+fieldset.p-field{border:0;padding:0;margin-inline:0}
+.p-check{display:flex;gap:10px;align-items:flex-start;font-size:14px;padding:6px 0}
+.p-check input{margin-top:3px;accent-color:#8a6ca6;width:16px;height:16px;flex:none}
+.p-check span small{display:block;color:#9dadc6}
+.p-btn{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:999px;background:#fff;color:#0c121d;font:inherit;font-weight:600;font-size:15px;padding:12px 22px;cursor:pointer;text-decoration:none;margin-top:20px}
+.p-btn.line{background:transparent;color:#fff;border:1px solid #3a4c6b}
+.p-btn[disabled]{opacity:.45;cursor:not-allowed}
+.p-link{background:none;border:0;color:#9dadc6;font:inherit;font-size:14px;cursor:pointer;padding:0;text-decoration:underline}
+.p-err{color:#e6a3a3;font-size:14px;margin:12px 0 0}
+.p-err ul{margin:6px 0 0;padding-left:18px}
+.p-ok{color:#c9b6dc;font-size:14px;margin:12px 0 0}
+.p-list{list-style:none;padding:0;margin:16px 0 0;display:grid;gap:10px}
+.p-list a{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;background:#18212f;border:1px solid #2c3a52;border-radius:16px;padding:16px 18px;text-decoration:none;color:#fff}
+.p-list a:hover{border-color:#3a4c6b}
+.p-tag{font-size:12px;border-radius:999px;padding:4px 10px;border:1px solid #3a4c6b;color:#9dadc6;white-space:nowrap}
+.p-tag.on{background:#c9b6dc;border-color:#c9b6dc;color:#0c121d;font-weight:600}
+.p-dl{display:grid;grid-template-columns:minmax(0,1fr);gap:4px 18px;margin:0}
+@media (min-width:600px){.p-dl{grid-template-columns:180px minmax(0,1fr)}}
+.p-dl dt{color:#9dadc6;font-size:13px;padding-top:10px}
+.p-dl dd{margin:0;padding-top:10px;font-size:15px;overflow-wrap:anywhere}
+.p-code{font-family:ui-monospace,Menlo,monospace;font-size:13px;background:#0f1622;border:1px solid #2c3a52;border-radius:10px;padding:10px 12px;overflow-wrap:anywhere;color:#c9b6dc;display:block}
+.p-secret{border:1px solid #d9b46a;border-radius:16px;padding:18px;margin-top:18px}
+.p-secret p{margin:0 0 10px;color:#fff}
+.p-secret .p-field{margin-top:12px}
+.p-guide{line-height:1.65;color:#dfe6f0}
+.p-guide h1{margin-bottom:12px}
+.p-guide h2{margin-top:40px;font-size:22px}
+.p-guide h3{margin-top:28px}
+.p-guide a{color:#c9b6dc}
+.p-guide code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:#18212f;border-radius:6px;padding:1px 5px}
+.p-guide pre{background:#18212f;border:1px solid #2c3a52;border-radius:14px;padding:14px;overflow-x:auto}
+.p-guide pre code{background:none;padding:0}
+.p-guide table{border-collapse:collapse;width:100%;display:block;overflow-x:auto;font-size:14px}
+.p-guide th,.p-guide td{border-bottom:1px solid #2c3a52;padding:8px 10px;text-align:left;vertical-align:top}
+.p-foot{border-top:1px solid #2c3a52;padding-block:20px;font-size:13px;color:#9dadc6}
