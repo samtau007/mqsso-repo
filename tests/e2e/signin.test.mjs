@@ -61,7 +61,13 @@ function secrets() {
 async function resetDatabase() {
   const c = new pg.Client({ connectionString: DB });
   await c.connect();
-  await c.query("drop schema public cascade; create schema public;");
+  // Clears only the test role's own schema, so this also works for the shared staging layout.
+  await c.query(`do $$ declare r record; begin
+    for r in select tablename from pg_tables where schemaname = current_schema() loop
+      execute format('drop table if exists %I cascade', r.tablename);
+    end loop;
+    drop function if exists mq_current_person();
+  end $$;`);
   await c.end();
   await migrate(DB);
 }

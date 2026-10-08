@@ -13,6 +13,7 @@ export async function migrate(connectionString) {
   await client.connect();
   try {
     await client.query("create table if not exists schema_migrations (name text primary key, applied_at timestamptz not null default now())");
+    await client.query("alter table schema_migrations enable row level security");
     const done = new Set((await client.query("select name from schema_migrations")).rows.map((r) => r.name));
     const files = (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort();
     for (const f of files) {

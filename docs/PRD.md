@@ -69,7 +69,7 @@ Five parts. We own and run the sign-in service; the rest sits on managed service
 | Part | Address | Built with | Why |
 | --- | --- | --- | --- |
 | Sign-in service | `id.muslimquotient.com` | Our own service built on node-oidc-provider (OpenID certified), running in Node next to the dashboard | We own it and pay no per-person fees; it follows OAuth 2.1 and OpenID Connect, so any platform's standard library connects; PKCE, renewing refresh tokens, a different private ID per platform and fine-grained permissions are built in. We build the sign-in and permission screens |
-| Muslim Quotient database | One new Supabase project, separate from Mohasaba | Postgres with row-level security | Keeps Muslim Quotient's records apart from each product's own data |
+| Muslim Quotient database | One new Supabase project, separate from Mohasaba (staging only: its own `mq` schema inside mohasaba-staging, see DECISIONS.md) | Postgres with row-level security | Keeps Muslim Quotient's records apart from each product's own data |
 | Record service | `api.muslimquotient.com` | Next.js route handlers on Vercel | Checks the platform's token and the person's permission, then saves the entry |
 | Dashboard and developer portal | `muslimquotient.com`, `developers.muslimquotient.com` | Next.js on Vercel | Same stack as Mohasaba, so one way of working |
 | Email | Login codes and relay | Resend for codes (already used by istighfar.club), plus a relay on Postmark inbound routing that forwards mail | Codes on their own sending subdomain; no open or click tracking |

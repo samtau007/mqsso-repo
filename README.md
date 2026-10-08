@@ -44,13 +44,18 @@ The end-to-end test wipes the database in `TEST_DATABASE_URL`, starts the built 
 
 ## Setting up an environment
 
-### Postgres (a new Supabase project, separate from Mohasaba)
+### Postgres
 
-Through Vercel's Supabase integration, in the Mohasaba team:
+**Staging** shares the mohasaba-staging Supabase project (Mumbai) but lives in its own schema, `mq`, owned by its own role, `mq_app`. `mq_app` cannot read Mohasaba's tables, and the Data API cannot see `mq`. Mohasaba's owner role can still read `mq`; that is accepted for staging only. Set up with `supabase/shared-staging/setup.sql` and the migrations, already applied on 8 October 2026.
 
-1. Open the `mqsso-repo` project in Vercel, then Storage, Create Database, Supabase. Create a new project in the existing Supabase organisation (for example `muslimquotient-staging`) and connect it to `mqsso-repo`. Vercel sets `POSTGRES_URL` and `POSTGRES_URL_NON_POOLING`; the app reads them directly.
-2. Do not connect it to any Mohasaba project, and do not connect Mohasaba's database to this one.
-3. In the Supabase dashboard for the new project: Project Settings, Data API, turn the Data API off. Then run `supabase/migrations/0001_muslim_quotient.sql` once in the SQL editor.
+To connect the deployment:
+
+1. In the mohasaba-staging SQL editor, give `mq_app` a password (a long random one, kept only in Vercel):
+   `alter role mq_app with password '...';`
+2. In Supabase, Connect, copy the **Transaction pooler** string (port 6543). Change the user from `postgres.<project ref>` to `mq_app.<project ref>` and put in the password from step 1.
+3. Set that as `DATABASE_URL` in the Vercel project `mqsso-repo`.
+
+**Production** gets its own Supabase project. Run `npm run migrate` against it once, and set `DATABASE_URL` the same way (there the default `postgres` user is fine).
 
 ### Domains (Vercel)
 

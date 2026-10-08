@@ -1,8 +1,8 @@
 -- Muslim Quotient database, version 1. Follows the data model in docs/PRD.md section 8.
--- Supabase is used only as Postgres. The app connects with the database owner role from
--- the server; nothing here is reachable through the Supabase Data API (anon, authenticated).
-
-create extension if not exists pgcrypto;
+-- Supabase is used only as Postgres. The app connects with the role that owns these tables;
+-- nothing here is reachable through the Supabase Data API (anon, authenticated).
+-- Everything is created in the current schema: public in a project of our own, or mq in the
+-- shared staging project (see supabase/shared-staging/setup.sql).
 
 -- People and identity -------------------------------------------------------
 
@@ -184,10 +184,10 @@ do $$
 begin
   if not exists (select 1 from pg_roles where rolname = 'mq_person') then create role mq_person nologin; end if;
   if not exists (select 1 from pg_roles where rolname = 'mq_record') then create role mq_record nologin; end if;
+  if not pg_has_role(current_user, 'mq_person', 'member') then grant mq_person to current_user; end if;
+  if not pg_has_role(current_user, 'mq_record', 'member') then grant mq_record to current_user; end if;
+  execute format('grant usage on schema %I to mq_person, mq_record', current_schema());
 end $$;
-
-grant mq_person, mq_record to current_user;
-grant usage on schema public to mq_person, mq_record;
 
 alter table people              enable row level security;
 alter table email_vault         enable row level security;
@@ -226,9 +226,9 @@ declare r text;
 begin
   foreach r in array array['anon', 'authenticated'] loop
     if exists (select 1 from pg_roles where rolname = r) then
-      execute format('revoke all on all tables in schema public from %I', r);
-      execute format('revoke all on all sequences in schema public from %I', r);
-      execute format('revoke all on all functions in schema public from %I', r);
+      execute format('revoke all on all tables in schema %I from %I', current_schema(), r);
+      execute format('revoke all on all sequences in schema %I from %I', current_schema(), r);
+      execute format('revoke all on all functions in schema %I from %I', current_schema(), r);
     end if;
   end loop;
 end $$;
