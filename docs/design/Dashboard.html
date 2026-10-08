@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Muslim Quotient dashboard</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&amp;family=Amiri&amp;display=swap">
+<style>
+body{margin:0;background:#0c121d}
+a{color:#c9b6dc}a:hover{color:#ffffff}
+</style>
+</helmet>
+<div style="min-height: 1080px; background: #0c121d; color: #ffffff; font-family: Outfit, system-ui, sans-serif;">
+
+  <header style="border-bottom: 1px solid #1f2a3c;">
+    <div style="max-width: 1320px; margin: 0 auto; padding: 18px 28px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+      <svg width="32" height="32" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="34" fill="none" stroke="#3a4c6b" stroke-width="14"></circle><path d="M50 16 A34 34 0 0 0 50 84" fill="none" stroke="#8a6ca6" stroke-width="14"></path><rect x="44" y="10" width="12" height="12" rx="2.5" fill="#ffffff" transform="rotate(45 50 16)"></rect></svg>
+      <span style="font-size: 18px; font-weight: 700; letter-spacing: -0.02em;">Muslim Quotient</span>
+      <span style="font-size: 11px; color: #9dadc6; border: 1px solid #2c3a52; border-radius: 999px; padding: 4px 10px;">Example data</span>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 12px;">
+        <span style="font-size: 14px; color: #9dadc6;">Quiet Cedar · <span style="color: #c9b6dc;">new name in 12 days</span></span>
+        <div style="width: 36px; height: 36px; border-radius: 50%; background: #2f7d6d; display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 21V9M12 9c-3 0-5-2-5-5 3 0 5 2 5 5zM12 13c3 0 5-2 5-5-3 0-5 2-5 5z"></path></svg></div>
+      </div>
+    </div>
+  </header>
+
+  <div style="max-width: 1320px; margin: 0 auto; padding: 32px 28px 64px; display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start;">
+
+    <nav aria-label="Dashboard" style="flex: 1 1 200px; max-width: 240px; display: flex; flex-direction: column; gap: 4px;">
+      <a href="#" style="text-decoration: none; color: #ffffff; background: #18212f; border-radius: 12px; padding: 12px 14px; font-weight: 500;">Overview</a>
+      <a href="#record" style="text-decoration: none; color: #9dadc6; border-radius: 12px; padding: 12px 14px;">My record</a>
+      <a href="#platforms" style="text-decoration: none; color: #9dadc6; border-radius: 12px; padding: 12px 14px;">Connected platforms</a>
+      <a href="#settings" style="text-decoration: none; color: #9dadc6; border-radius: 12px; padding: 12px 14px;">Prayer settings</a>
+      <a href="#privacy" style="text-decoration: none; color: #9dadc6; border-radius: 12px; padding: 12px 14px;">Privacy</a>
+    </nav>
+
+    <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+
+      <div style="display: flex; flex-wrap: wrap; gap: 24px;">
+        <section style="flex: 1 1 380px; background: #18212f; border: 1px solid #2c3a52; border-radius: 24px; padding: 28px; display: flex; flex-direction: column; gap: 6px;">
+          <span style="font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: #9dadc6; font-weight: 500;">Your Muslim Quotient</span>
+          <span style="font-size: 72px; font-weight: 700; letter-spacing: -0.05em; line-height: 1; margin-top: 10px;">4–5<span style="font-size: 18px; color: #9dadc6; font-weight: 500; letter-spacing: 0; margin-left: 8px;">of 10</span></span>
+          <span style="font-size: 17px; font-weight: 600; color: #c9b6dc;">Between Striving and Frequently</span>
+          <span style="font-size: 14px; color: #9dadc6; margin-top: 10px;">From your Muslim Quotient questions. Tests you connect, like Mohasaba, add their own results under Reflection. You get a range. No one is ranked.</span>
+        </section>
+        <section style="flex: 1 1 300px; background: #18212f; border: 1px solid #2c3a52; border-radius: 24px; padding: 28px; display: flex; flex-direction: column; gap: 14px;">
+          <span style="font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: #9dadc6; font-weight: 500;">This month</span>
+          <div style="display: flex; justify-content: space-between; gap: 12px; font-size: 15px; padding-top: 4px;"><span style="color: #9dadc6;">Learning</span><span>2 courses · 12 halaqas</span></div>
+          <div style="display: flex; justify-content: space-between; gap: 12px; font-size: 15px;"><span style="color: #9dadc6;">Practice</span><span>Daily istighfar on 22 days</span></div>
+          <div style="display: flex; justify-content: space-between; gap: 12px; font-size: 15px;"><span style="color: #9dadc6;">Reflection</span><span>1 test taken</span></div>
+          <a href="#record" style="margin-top: auto; align-self: flex-start; text-decoration: none; background: #ffffff; color: #2c3a52; border-radius: 999px; padding: 12px 22px; font-weight: 600; font-size: 14px;">See my picture</a>
+        </section>
+      </div>
+
+      <section id="record" style="background: #18212f; border: 1px solid #2c3a52; border-radius: 24px; padding: 28px; display: flex; flex-direction: column; gap: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap;">
+          <h2 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em;">My picture</h2>
+          <span style="font-size: 13px; color: #9dadc6;">What your connected platforms add</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;">
+          <div style="background: #0f1622; border: 1px solid #2c3a52; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 12px; min-width: 0;">
+            <span style="font-family: Amiri, serif; font-size: 24px; color: #9dadc6;">علم</span>
+            <span style="font-weight: 600; font-size: 17px;">Learning</span>
+            <div style="display: flex; flex-direction: column; gap: 2px; padding-top: 10px; border-top: 1px solid #2c3a52;"><span style="font-size: 14px; color: #dfe6f0;">Tajwīd course, lesson 8 of 20</span><span style="font-size: 12px; color: #9dadc6;">from [Partner Qur’an school]</span></div>
+            <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 14px; color: #dfe6f0;">12 halaqas attended</span><span style="font-size: 12px; color: #9dadc6;">from Halaqa Notes</span></div>
+          </div>
+          <div style="background: #0f1622; border: 1px solid #2c3a52; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 12px; min-width: 0;">
+            <span style="font-family: Amiri, serif; font-size: 24px; color: #9dadc6;">عمل</span>
+            <span style="font-weight: 600; font-size: 17px;">Practice</span>
+            <div style="display: flex; flex-direction: column; gap: 2px; padding-top: 10px; border-top: 1px solid #2c3a52;"><span style="font-size: 14px; color: #dfe6f0;">Daily istighfar on 22 days this month</span><span style="font-size: 12px; color: #9dadc6;">from istighfar.club</span></div>
+          </div>
+          <div style="background: #0f1622; border: 1px solid #8a6ca6; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 12px; min-width: 0;">
+            <span style="font-family: Amiri, serif; font-size: 24px; color: #c9b6dc;">تفكر</span>
+            <span style="font-weight: 600; font-size: 17px;">Reflection</span>
+            <div style="display: flex; flex-direction: column; gap: 2px; padding-top: 10px; border-top: 1px solid #2c3a52;"><span style="font-size: 14px; color: #dfe6f0;">Muslim Quotient questions: 4–5 of 10</span><span style="font-size: 12px; color: #9dadc6;">from Muslim Quotient</span></div>
+            <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 14px; color: #dfe6f0;">Worship: 4–5 of 10. Next window in 9 days.</span><span style="font-size: 12px; color: #9dadc6;">from Mohasaba, a connected test</span></div>
+          </div>
+        </div>
+      </section>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+        <section id="platforms" style="flex: 2 1 420px; min-width: 0; background: #18212f; border: 1px solid #2c3a52; border-radius: 24px; padding: 28px; display: flex; flex-direction: column; gap: 4px;">
+          <h2 style="margin: 0 0 12px; font-size: 22px; font-weight: 600; letter-spacing: -0.02em;">Connected platforms</h2>
+
+          <div style="display: flex; align-items: center; gap: 14px; padding: 14px 0; border-top: 1px solid #2c3a52; flex-wrap: wrap;">
+            <div style="width: 40px; height: 40px; border-radius: 12px; background: #3a4c6b; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12);"><svg width="24" height="24" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="32" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="14"></circle><path d="M50 18 A32 32 0 0 0 50 82" fill="none" stroke="#ffffff" stroke-width="14"></path></svg></div>
+            <div style="flex: 1; min-width: 180px; display: flex; flex-direction: column;">
+              <span style="font-weight: 600;">Mohasaba</span>
+              <span style="font-size: 13px; color: #9dadc6;">A test · adds its results to Reflection</span>
+            </div>
+            <span style="font-size: 12px; color: #c9b6dc; border: 1px solid #8a6ca6; border-radius: 999px; padding: 4px 10px;">Connected</span>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 14px; padding: 14px 0; border-top: 1px solid #2c3a52; flex-wrap: wrap;">
+            <div style="width: 40px; height: 40px; border-radius: 12px; background: #24314a; display: flex; align-items: center; justify-content: center; font-family: Amiri, serif; font-size: 20px;">ا</div>
+            <div style="flex: 1; min-width: 180px; display: flex; flex-direction: column;">
+              <span style="font-weight: 600;">istighfar.club</span>
+              <span style="font-size: 13px; color: #9dadc6;">Adds your daily istighfar to Practice</span>
+            </div>
+            <span style="font-size: 12px; color: #c9b6dc; border: 1px solid #8a6ca6; border-radius: 999px; padding: 4px 10px;">Connected</span>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 14px; padding: 14px 0; border-top: 1px solid #2c3a52; flex-wrap: wrap;">
+            <div style="width: 40px; height: 40px; border-radius: 12px; background: #1f5c4a; display: flex; align-items: center; justify-content: center;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h7a2 2 0 0 1 2 2v12a2 2 0 0 0-2-2H4z"></path><path d="M20 5h-7a2 2 0 0 0-2 2v12a2 2 0 0 1 2-2h7z"></path></svg>
+            </div>
+            <div style="flex: 1; min-width: 180px; display: flex; flex-direction: column;">
+              <span style="font-weight: 600;">Halaqa Notes <span style="font-size: 11px; color: #9dadc6; font-weight: 400;">example partner</span></span>
+              <span style="font-size: 13px; color: #9dadc6;">Adds halaqas to Learning · uses your prayer settings</span>
+            </div>
+            <a href="#" style="font-size: 13px; color: #9dadc6;">Disconnect</a>
+          </div>
+        </section>
+
+        <div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+          <section id="settings" style="background: #18212f; border: 1px solid #2c3a52; border-radius: 24px; padding: 28px; display: flex; flex-direction: column; gap: 12px;">
+            <h2 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.02em;">Prayer settings</h2>
+            <span style="font-size: 13px; color: #9dadc6;">Set once. Every connected platform uses them.</span>
+            <div style="display: flex; justify-content: space-between; gap: 12px; font-size: 14px; padding-top: 8px; border-top: 1px solid #2c3a52;"><span style="color: #9dadc6;">Location</span><span>Hyderabad</span></div>
+            <div style="display: flex; justify-content: space-between; gap: 12px; font-size: 14px;"><span style="color: #9dadc6;">Calculation method</span><span>[Chosen method]</span></div>
+            <div style="display: flex; justify-content: space-between; gap: 12px; font-size: 14px;"><span style="color: #9dadc6;">ʿAṣr</span><span>[Chosen madhhab]</span></div>
+            <div style="display: flex; justify-content: space-between; gap: 12px; font-size: 14px;"><span style="color: #9dadc6;">Language</span><span>English</span></div>
+          </section>
+
+          <section id="privacy" style="background: #18212f; border: 1px solid #2c3a52; border-radius: 24px; padding: 28px; display: flex; flex-direction: column; gap: 12px;">
+            <h2 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.02em;">Privacy</h2>
+            <span style="font-size: 14px; color: #dfe6f0; line-height: 1.5;">Each platform knows you by a different private ID, so they cannot match you with each other. You choose whether each one sees your real email or a private relay address.</span>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px;">
+              <a href="#" style="text-decoration: none; border: 1px solid #2c3a52; color: #ffffff; border-radius: 999px; padding: 10px 18px; font-size: 14px;">Export my record</a>
+              <a href="#" style="text-decoration: none; border: 1px solid #2c3a52; color: #e6a3a3; border-radius: 999px; padding: 10px 18px; font-size: 14px;">Delete everything</a>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1080}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
