@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Private by design</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&amp;family=Amiri&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#c9b6dc}a:hover{color:#ffffff}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #0c121d; color: #ffffff; font-family: Outfit, system-ui, sans-serif; padding: 48px 20px 20px; display: flex; flex-direction: column; gap: 12px; overflow: hidden;">
+  <span style="font-size: 24px; font-weight: 700; letter-spacing: -0.02em;">Private by design</span>
+  <span style="font-size: 14px; color: #9dadc6; line-height: 1.5; margin-top: -8px;">Your record is between you and your Lord. These protections keep it that way and keep showing off (riyāʾ) out of it.</span>
+
+  <div style="background: #c9b6dc; color: #0c121d; border-radius: 22px; padding: 18px; display: flex; flex-direction: column; gap: 10px;">
+    <div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 600;">Your name here</span><span style="font-size: 12px; font-weight: 600;">changes in 12 days</span></div>
+    <span style="font-size: 30px; font-weight: 800; letter-spacing: -0.03em; line-height: 1;">Quiet Cedar</span>
+    <span style="font-size: 13px; line-height: 1.45;">Given to you, never chosen. A new name every 30 days, so no one can build a reputation on it, including you.</span>
+    <div style="display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px;"><span style="border: 1px solid rgba(12,18,29,0.3); border-radius: 999px; padding: 3px 10px; text-decoration: line-through;">Still Olive</span><span style="border: 1px solid rgba(12,18,29,0.3); border-radius: 999px; padding: 3px 10px; text-decoration: line-through;">Morning Rain</span></div>
+  </div>
+
+  <div style="background: #18212f; border: 1px solid #2c3a52; border-radius: 22px; padding: 4px 16px; display: flex; flex-direction: column;">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 0; border-bottom: 1px solid #2c3a52;">
+      <div style="display: flex; flex-direction: column; gap: 2px;"><label for="pv-shot" style="font-size: 15px;">Block screenshots</label><span style="font-size: 12px; color: #9dadc6;">Screenshots and recordings show a blank screen</span></div>
+      <input id="pv-shot" type="checkbox" checked style="width: 22px; height: 22px; accent-color: #8a6ca6;">
+    </div>
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 0; border-bottom: 1px solid #2c3a52;">
+      <div style="display: flex; flex-direction: column; gap: 2px;"><label for="pv-hold" style="font-size: 15px;">Hide numbers until I hold</label><span style="font-size: 12px; color: #9dadc6;">Ranges stay blurred until you press and hold</span></div>
+      <input id="pv-hold" type="checkbox" checked style="width: 22px; height: 22px; accent-color: #8a6ca6;">
+    </div>
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 0; border-bottom: 1px solid #2c3a52;">
+      <div style="display: flex; flex-direction: column; gap: 2px;"><label for="pv-blur" style="font-size: 15px;">Blur when I leave</label><span style="font-size: 12px; color: #9dadc6;">Hidden in the app switcher and when the screen locks</span></div>
+      <input id="pv-blur" type="checkbox" checked style="width: 22px; height: 22px; accent-color: #8a6ca6;">
+    </div>
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 0; border-bottom: 1px solid #2c3a52;">
+      <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 15px;">Email for new platforms</span><span style="font-size: 12px; color: #9dadc6;">Asked each time; relay address chosen first</span></div>
+      <span style="font-size: 12px; color: #c9b6dc; border: 1px solid #8a6ca6; border-radius: 999px; padding: 4px 10px;">Hide</span>
+    </div>
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 0;">
+      <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 15px;">Sharing</span><span style="font-size: 12px; color: #9dadc6;">There is no share button and no public profile</span></div>
+      <span style="font-size: 12px; color: #c9b6dc; border: 1px solid #8a6ca6; border-radius: 999px; padding: 4px 10px;">Always off</span>
+    </div>
+  </div>
+
+  <div style="flex: 1;"></div>
+  <a href="Screenshot.dc.html" style="text-decoration: none; display: flex; align-items: center; justify-content: center; height: 50px; border-radius: 999px; border: 1px solid #2c3a52; color: #ffffff; font-size: 15px;">See what a screenshot shows</a>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
