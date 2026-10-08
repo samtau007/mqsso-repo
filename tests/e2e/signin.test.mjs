@@ -1,5 +1,5 @@
 // Milestone 1, done when: a test platform registers in the portal, follows the developer guide,
-// and signs a person in. Runs the built app (npm run build first) against a real Postgres.
+// and signs a person in. Milestone 2, done when: sign up on muslimquotient.com works end to end. Runs the built app (npm run build first) against a real Postgres.
 //
 //   TEST_DATABASE_URL=postgres://user:pass@127.0.0.1/mq_test npm run test:e2e
 //
@@ -22,6 +22,7 @@ const PORT = 3100;
 const DB = process.env.TEST_DATABASE_URL || "postgres://mq:mq@127.0.0.1/mq_test";
 const ID = `http://id.localhost:${PORT}`;
 const DEV = `http://developers.localhost:${PORT}`;
+const SITE = `http://localhost:${PORT}`;
 const OUTBOX = path.join(ROOT, ".mq-test", "outbox");
 const ADMIN = "admin@example.com";
 const PERSON = "person@example.com";
@@ -31,6 +32,7 @@ const CHROMIUM = process.env.CHROMIUM_PATH || "/opt/pw-browsers/chromium-1194/ch
 
 let server;
 let browser;
+let SECRETS;
 const callbacks = new Map();
 const callbackServers = [];
 
@@ -111,22 +113,35 @@ async function latestCode(to) {
   throw new Error(`no email to ${to}`);
 }
 
-before(async () => {
-  await rm(path.join(ROOT, ".mq-test"), { recursive: true, force: true });
-  await mkdir(OUTBOX, { recursive: true });
-  await resetDatabase();
+/** Starts the built app. The same secrets every time, so restarts keep working with the data. */
+async function startServer(extra = {}) {
   server = spawn(process.execPath, [path.join(ROOT, "node_modules", "next", "dist", "bin", "next"), "start", "-p", String(PORT)], {
     cwd: ROOT,
     detached: true,
     env: {
-      ...process.env, ...secrets(),
+      ...process.env, ...SECRETS,
       DATABASE_URL: DB,
-      MQ_ID_ORIGIN: ID, MQ_DEVELOPERS_ORIGIN: DEV, MQ_SITE_ORIGIN: `http://localhost:${PORT}`,
+      MQ_ID_ORIGIN: ID, MQ_DEVELOPERS_ORIGIN: DEV, MQ_SITE_ORIGIN: SITE,
       MQ_MAIL_OUTBOX: OUTBOX, MQ_PORTAL_ADMINS: ADMIN, RESEND_API_KEY: "",
+      ...extra,
     },
     stdio: ["ignore", "inherit", "inherit"],
   });
   await waitForServer();
+}
+
+async function restartServer(extra) {
+  process.kill(-server.pid, "SIGTERM");
+  await new Promise((r) => server.once("exit", r));
+  await startServer(extra);
+}
+
+before(async () => {
+  await rm(path.join(ROOT, ".mq-test"), { recursive: true, force: true });
+  await mkdir(OUTBOX, { recursive: true });
+  await resetDatabase();
+  SECRETS = secrets();
+  await startServer();
   for (const port of [3101, 3102, 3103, 3104]) await startCallbackServer(port);
   browser = await chromium.launch({ executablePath: CHROMIUM });
   // CLAUDE.md: every screen must work at 360px wide.
@@ -354,10 +369,104 @@ test("platforms in one sector group share a private ID; a used platform's group 
     await setGroup(p.clientId, "muslimquotient");
   }
   const one = await signInAgain(await platform(c.clientId, c.clientSecret), CALLBACK_C, "hide");
+  subs.grouped = one.sub;
   const two = await signInAgain(await platform(d.clientId, d.clientSecret), "http://127.0.0.1:3104/cb", "hide");
   assert.equal(one.sub, two.sub, "same sector group, same private ID");
   assert.notEqual(one.sub, subs.subA);
   assert.notEqual(one.email, two.email, "a relay address per person per platform");
+});
+
+// ---- Milestone 2: muslimquotient.com is an ordinary client of the sign-in service ----
+
+async function db(sql, values = []) {
+  const c = new pg.Client({ connectionString: DB });
+  await c.connect();
+  try {
+    return (await c.query(sql, values)).rows;
+  } finally {
+    await c.end();
+  }
+}
+
+test("muslimquotient.com registers in the portal like any platform", async () => {
+  // The admin is still signed in to the portal from the tests above.
+  const site = await registerPlatform({ name: "Muslim Quotient", website: SITE, redirect: `${SITE}/auth/mq/callback`, notice: "https://muslimquotient.com/api/mq/notices" });
+  await approve(site.clientId);
+  await setGroup(site.clientId, "muslimquotient");
+  subs.site = site;
+  await restartServer({ MQ_SITE_CLIENT_ID: site.clientId, MQ_SITE_CLIENT_SECRET: site.clientSecret });
+});
+
+test("a newcomer creates their ID from the home page and lands on their dashboard", async () => {
+  const context = await browser.newContext({ viewport: { width: 360, height: 780 } });
+  const fresh = await context.newPage();
+  await fresh.goto(SITE);
+  assert.equal(await fresh.evaluate(() => document.documentElement.scrollWidth <= 360), true, "home page fits 360px");
+  await fresh.click("text=Create your ID");
+  await fresh.waitForSelector("#email");
+  assert.ok(fresh.url().startsWith(`${ID}/interaction/`), "sign-up happens on the sign-in service");
+  await fresh.fill("#email", "newcomer@example.com");
+  await fresh.click("text=Send me a code");
+  await fresh.waitForSelector("#code");
+  await fresh.fill("#code", await latestCode("newcomer@example.com"));
+  await fresh.click("text=Continue");
+  await fresh.waitForSelector("text=Your given name is");
+  const givenName = await fresh.textContent(".given");
+  await fresh.click("button:has-text('Allow')");
+  await fresh.waitForURL(`${SITE}/dashboard`);
+  await fresh.waitForSelector(".d-name");
+  assert.ok((await fresh.textContent(".d-name")).includes(givenName));
+  assert.ok(await fresh.isVisible("text=Nothing here yet"), "Reflection is empty until Mohasaba connects");
+  assert.equal(await fresh.isVisible("text=Muslim Quotient questions"), false);
+  const width = await fresh.evaluate(() => document.documentElement.scrollWidth);
+  assert.ok(width <= 360, `dashboard is ${width}px wide at 360px`);
+  await fresh.screenshot({ path: path.join(ROOT, ".mq-test", "dashboard-new.png"), fullPage: true });
+
+  // Sign out, then back in: Muslim Quotient remembers the person and the permission, so no code and no screen.
+  await fresh.click("text=Sign out");
+  await fresh.waitForURL(`${SITE}/`);
+  await fresh.goto(`${SITE}/dashboard`);
+  await fresh.waitForURL(`${SITE}/dashboard`);
+  await fresh.waitForSelector(".d-name");
+  await context.close();
+});
+
+test("the dashboard shows only the person's own record, and the website shares our sector group's ID", async () => {
+  // Someone already connected to four platforms signs in on muslimquotient.com.
+  await page.goto(`${SITE}/signin`);
+  await page.waitForSelector("text=Signed in as");
+  await page.click("button:has-text('Allow')");
+  await page.waitForURL(`${SITE}/dashboard`);
+
+  const [me] = await db(
+    "select c.person_id, c.sub from connections c where c.client_id = $1 and exists (select 1 from connections x where x.person_id = c.person_id and x.client_id = $2)",
+    [subs.site.clientId, subs.a.clientId],
+  );
+  const [other] = await db("select person_id from connections where client_id = $1 and person_id <> $2", [subs.site.clientId, me.person_id]);
+  assert.equal(me.sub, subs.grouped, "muslimquotient.com and our products share one private ID");
+
+  // Entries as the record service (M3) will write them, for both people.
+  const add = (person, title, low, high, key) => db(
+    `insert into entries (person_id, client_id, type, action, title, range_low, range_high, range_of, occurred_at, tz, vocabulary_version, key, source)
+     values ($1, $2, 'reflection', 'test.result', $3, $4, $5, 10, now(), 'Asia/Kolkata', 1, $6, 'server')`,
+    [person, subs.a.clientId, title, low, high, key],
+  );
+  await add(me.person_id, "Worship", 4, 5, "mine-1");
+  await add(other.person_id, "Character", 2, 3, "theirs-1");
+  await db(
+    `insert into entries (person_id, client_id, type, action, title, occurred_at, tz, vocabulary_version, key, source)
+     values ($1, $2, 'practice', 'act.kept', 'Daily istighfar kept', now(), 'Asia/Kolkata', 1, 'p-1', 'server')`,
+    [me.person_id, subs.b.clientId],
+  );
+
+  await page.reload();
+  await page.waitForSelector(".d-range");
+  assert.equal((await page.textContent(".d-range")).replace(/\s+/g, " ").trim(), "4–5of 10");
+  assert.ok(await page.isVisible("text=1 day kept"));
+  assert.equal(await page.isVisible("text=Character"), false, "another person's results never show");
+  for (const name of ["Halaqa Notes", "Quran Circle", "Our Product One", "Our Product Two"]) assert.ok(await page.isVisible(`text=${name}`), name);
+  assert.equal(await page.isVisible(".d-plat >> text=Muslim Quotient"), false, "the website itself is not listed as a platform");
+  await fitsNarrowScreen("dashboard");
 });
 
 test("the daily job is protected and runs", async () => {

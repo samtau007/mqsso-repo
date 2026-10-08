@@ -15,7 +15,7 @@ One Next.js deployment answers for several hosts. `middleware.ts` routes by host
 | --- | --- | --- |
 | `id.muslimquotient.com` | Sign-in service: node-oidc-provider, email code, permission screen, given names | `pages/api/id`, `lib/oidc` |
 | `developers.muslimquotient.com` | Developer portal: register a platform, keys, approval | `app/developers` |
-| `muslimquotient.com` | Website and, from M2, the dashboard | `app/` |
+| `www.muslimquotient.com` | Website and dashboard; signs in through `id.` as an ordinary platform | `app/`, `lib/site` |
 | `api.muslimquotient.com` | Record service (from M3) | not built yet |
 
 Postgres holds everything (`supabase/migrations`). Supabase is used only as the database: no Supabase Auth, no Data API.
@@ -57,14 +57,18 @@ To connect the deployment:
 
 **Production** gets its own Supabase project. Run `npm run migrate` against it once, and set `DATABASE_URL` the same way (there the default `postgres` user is fine).
 
+### The website as a platform
+
+muslimquotient.com uses Muslim Quotient sign-in exactly as any platform would. In the developer portal, register it with the redirect address `https://www.muslimquotient.com/auth/mq/callback`, approve it, and set its sector group to `muslimquotient` before anyone signs in (istighfar.club and Mohasaba join the same group). Put its client ID and secret in `MQ_SITE_CLIENT_ID` and `MQ_SITE_CLIENT_SECRET`, and set `MQ_SITE_ORIGIN=https://www.muslimquotient.com`.
+
 ### Domains (Vercel)
 
 Add these domains to the Vercel project. Vercel shows the exact DNS record for each; usually an `A` record for the apex and a `CNAME` to `cname.vercel-dns.com` for each subdomain.
 
 | Domain | Record |
 | --- | --- |
-| `muslimquotient.com` | `A` as shown by Vercel |
-| `www.muslimquotient.com` | `CNAME`, redirect to the apex in Vercel |
+| `muslimquotient.com` | Added; redirects to `www` |
+| `www.muslimquotient.com` | Added |
 | `id.muslimquotient.com` | `CNAME` |
 | `developers.muslimquotient.com` | `CNAME` |
 | `api.muslimquotient.com` | `CNAME` (used from M3) |
