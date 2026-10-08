@@ -402,7 +402,7 @@ test("a newcomer creates their ID from the home page and lands on their dashboar
   const fresh = await context.newPage();
   await fresh.goto(SITE);
   assert.equal(await fresh.evaluate(() => document.documentElement.scrollWidth <= 360), true, "home page fits 360px");
-  await fresh.click("text=Create your ID");
+  await fresh.click("text=Create your MQ ID");
   await fresh.waitForSelector("#email");
   assert.ok(fresh.url().startsWith(`${ID}/interaction/`), "sign-up happens on the sign-in service");
   await fresh.fill("#email", "newcomer@example.com");
