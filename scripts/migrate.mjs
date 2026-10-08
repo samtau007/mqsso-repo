@@ -6,7 +6,10 @@ import pg from "pg";
 const dir = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "supabase", "migrations");
 
 export async function migrate(connectionString) {
-  const client = new pg.Client({ connectionString });
+  const url = new URL(connectionString);
+  const local = ["localhost", "127.0.0.1"].includes(url.hostname);
+  for (const k of ["sslmode", "sslrootcert", "supa", "pgbouncer"]) url.searchParams.delete(k);
+  const client = new pg.Client({ connectionString: url.toString(), ssl: local ? undefined : { rejectUnauthorized: false } });
   await client.connect();
   try {
     await client.query("create table if not exists schema_migrations (name text primary key, applied_at timestamptz not null default now())");
@@ -32,11 +35,13 @@ export async function migrate(connectionString) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  if (!process.env.DATABASE_URL) {
-    console.error("DATABASE_URL is not set");
+  // Migrations need a direct (non-pooled) connection when available.
+  const url = process.env.DATABASE_URL || process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL;
+  if (!url) {
+    console.error("DATABASE_URL (or POSTGRES_URL_NON_POOLING) is not set");
     process.exit(1);
   }
-  migrate(process.env.DATABASE_URL).catch((e) => {
+  migrate(url).catch((e) => {
     console.error(e.message);
     process.exit(1);
   });

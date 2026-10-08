@@ -6,10 +6,13 @@ type Global = typeof globalThis & { __mqPool?: pg.Pool };
 export function pool(): pg.Pool {
   const g = globalThis as Global;
   if (!g.__mqPool) {
-    const url = env.databaseUrl;
-    const local = /@(localhost|127\.0\.0\.1)[:/]/.test(url);
+    const url = new URL(env.databaseUrl);
+    const local = ["localhost", "127.0.0.1"].includes(url.hostname);
+    // Vercel's integration adds sslmode and other parameters that would override the ssl
+    // setting below; TLS is set here instead.
+    for (const k of ["sslmode", "sslrootcert", "supa", "pgbouncer"]) url.searchParams.delete(k);
     g.__mqPool = new pg.Pool({
-      connectionString: url,
+      connectionString: url.toString(),
       max: 5,
       ssl: local ? undefined : { rejectUnauthorized: false },
     });

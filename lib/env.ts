@@ -11,7 +11,15 @@ function origin(name: string, fallback: string): string {
 }
 
 export const env = {
-  get databaseUrl() { return required("DATABASE_URL"); },
+  /**
+   * DATABASE_URL, or POSTGRES_URL as set by Vercel's Supabase integration (the pooled
+   * connection). Either works; DATABASE_URL wins if both are set.
+   */
+  get databaseUrl() {
+    const url = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+    if (!url) throw new Error("DATABASE_URL (or POSTGRES_URL from the Vercel Supabase integration) is not set. See .env.example.");
+    return url;
+  },
 
   /** Public addresses. The issuer is the sign-in service's own address. */
   get idOrigin() { return origin("MQ_ID_ORIGIN", "https://id.muslimquotient.com"); },
