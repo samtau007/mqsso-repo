@@ -10,7 +10,6 @@ import { createClient } from "@/lib/supabase/client";
 type Step = "email" | "code";
 
 export default function SignUp() {
-  const supabase = createClient();
   const router = useRouter();
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
@@ -21,7 +20,7 @@ export default function SignUp() {
   async function sendCode(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true); setError(null);
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+    const { error } = await createClient().auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
     setBusy(false);
     if (error) return setError("We could not send a code to that address. Check it and try again.");
     setStep("code");
@@ -30,17 +29,13 @@ export default function SignUp() {
   async function verify(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true); setError(null);
-    const { error } = await supabase.auth.verifyOtp({ email, token: code, type: "email" });
+    const { error } = await createClient().auth.verifyOtp({ email, token: code, type: "email" });
     setBusy(false);
     if (error) return setError("That code did not match. Check the latest email and try again.");
-    router.push("/questions");
+    router.push("/");
     router.refresh();
   }
 
-  async function google() {
-    const site = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
-    await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: `${site}/auth/callback?next=/questions` } });
-  }
 
   return (
     <Shell>
@@ -52,7 +47,7 @@ export default function SignUp() {
               {step === "email" ? (
                 <form onSubmit={sendCode}>
                   <div className="c-top"><span>Step 1 of 2</span><span>Sign up</span></div>
-                  <p className="c-title">Sign up to begin your Muslim Quotient.</p>
+                  <p className="c-title">Create your Muslim Quotient ID.</p>
                   <div className="field">
                     <label htmlFor="email">Your email</label>
                     <input id="email" className="input" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
@@ -61,9 +56,7 @@ export default function SignUp() {
                   <div className="cta">
                     <button className="btn btn-glow" type="submit" disabled={busy || !email}>{busy ? "Sending…" : "Send me a code"} <Arrow /></button>
                   </div>
-                  <div className="or">or</div>
-                  <button className="btn btn-line" type="button" onClick={google}>Continue with Google</button>
-                  <p className="fine">We send a 6-digit code to your email. The questions open once it is verified.</p>
+                  <p className="fine">We send a 6-digit code to your email.</p>
                 </form>
               ) : (
                 <form onSubmit={verify}>
@@ -75,7 +68,7 @@ export default function SignUp() {
                   </div>
                   {error && <p className="err">{error}</p>}
                   <div className="cta">
-                    <button className="btn btn-glow" type="submit" disabled={busy || code.length !== 6}>{busy ? "Checking…" : "Verify and begin"} <Arrow /></button>
+                    <button className="btn btn-glow" type="submit" disabled={busy || code.length !== 6}>{busy ? "Checking…" : "Verify"} <Arrow /></button>
                   </div>
                   <p className="fine">
                     <button type="button" className="link" onClick={() => { setStep("email"); setCode(""); setError(null); }}>Use a different email</button>
