@@ -1,5 +1,5 @@
-/* Developer portal. Tokens from CLAUDE.md; solid colours only.
-   PROVISIONAL LAYOUT: to be matched to the design canvas (docs/design) once it is in the repo. */
+/* Developer portal. The design canvas has no portal screens; this uses its tokens and parts
+   (cards, pill buttons, labels). Solid colours only. */
 .p-page{min-height:100vh;display:flex;flex-direction:column;background:#0c121d;color:#fff}
 .p-wrap{width:100%;max-width:880px;margin:0 auto;padding-inline:16px}
 @media (min-width:600px){.p-wrap{padding-inline:28px}}

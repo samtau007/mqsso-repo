@@ -267,23 +267,19 @@ test("a new person signs up with an email code, gets a given name, hides their e
   await page.fill("#code", await latestCode(PERSON));
   await page.click("text=Continue");
 
-  await page.waitForSelector("text=Your given name", { timeout: 5000 }).catch(async (e) => {
+  await page.waitForSelector("text=Your given name is", { timeout: 5000 }).catch(async (e) => {
     console.log(page.url(), (await page.content()).replace(/<style>[\s\S]*?<\/style>/, "").slice(0, 3000));
     throw e;
   });
   await fitsNarrowScreen("id-permissions");
-  const givenName = await page.textContent(".name b");
+  const givenName = await page.textContent(".given");
   assert.match(givenName, /^[A-Z][a-z]+ [A-Z][a-z]+$/);
   assert.ok(await page.isVisible("text=Add what you learn here to your record"));
-  assert.ok(await page.isVisible("text=never sees"));
+  assert.ok(await page.isVisible("text=It will never see"));
+  // As in the design, Hide my email is chosen to begin with.
+  assert.ok(await page.isChecked("input[value='hide']"));
 
-  // The email choice must be made: the browser will not submit without it.
-  await page.click("text=Allow");
-  await page.waitForTimeout(300);
-  assert.equal(s.callback(), undefined);
-  assert.ok(await page.isVisible("text=Which email should Halaqa Notes get?"));
-  await page.check("input[value='hide']");
-  await page.click("text=Allow");
+  await page.click("button:has-text('Allow')");
   await page.waitForTimeout(300);
   assert.ok(s.callback(), "callback was reached");
 
@@ -328,7 +324,7 @@ async function signInAgain(config, redirect, emailChoice) {
     await page.waitForSelector("text=Signed in as");
     assert.equal(await page.isVisible("#email"), false);
     await page.check(`input[value='${emailChoice}']`);
-    await page.click("text=Allow");
+    await page.click("button:has-text('Allow')");
     await page.waitForTimeout(300);
   }
   const tokens = await oidc.authorizationCodeGrant(config, new URL(s.callback()), { pkceCodeVerifier: s.verifier, expectedState: s.state });

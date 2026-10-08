@@ -61,12 +61,12 @@ async function renderConsent(res: ServerResponse, details: Details, error?: stri
   return send(res, status, consentStep({
     uid: details.uid,
     clientName: client.clientName ?? client.clientId,
-    clientWebsite: String(client.metadata().client_uri ?? ""),
     givenName: person.givenName,
     isNew: !(await hasConnections(accountId)),
     scopes: scopes.map((s) => scopeInfo(s)!).filter(Boolean),
     emailRequested: scopes.includes("email"),
     emailChoice: conn?.emailChoice ?? null,
+    relayAddress: conn?.relayAddress ?? null,
     error,
   }));
 }
@@ -93,7 +93,7 @@ export async function handleInteraction(req: IncomingMessage, res: ServerRespons
   if (req.method === "GET" && !action) {
     if (prompt === "login") {
       const email = await pendingEmail("signin", uid);
-      if (email && url.searchParams.get("step") !== "email") return send(res, 200, codeStep({ uid, email }));
+      if (email && url.searchParams.get("step") !== "email") return send(res, 200, codeStep({ uid, email, clientName }));
       return send(res, 200, emailStep({ uid, clientName }));
     }
     if (prompt === "consent") return renderConsent(res, details);
@@ -125,9 +125,9 @@ export async function handleInteraction(req: IncomingMessage, res: ServerRespons
       try {
         await issueCode("signin", uid, email);
       } catch (e) {
-        return send(res, 400, codeStep({ uid, email, error: codeErrorMessage(e) }));
+        return send(res, 400, codeStep({ uid, email, clientName, error: codeErrorMessage(e) }));
       }
-      return send(res, 200, codeStep({ uid, email, sent: true }));
+      return send(res, 200, codeStep({ uid, email, clientName, sent: true }));
     }
 
     case "code": {
@@ -138,7 +138,7 @@ export async function handleInteraction(req: IncomingMessage, res: ServerRespons
         email = await verifyCode("signin", uid, code);
       } catch (e) {
         const pending = (await pendingEmail("signin", uid)) ?? "";
-        return send(res, 400, codeStep({ uid, email: pending, error: codeErrorMessage(e) }));
+        return send(res, 400, codeStep({ uid, email: pending, clientName, error: codeErrorMessage(e) }));
       }
       const { person } = await findOrCreatePerson(email);
       return p.interactionFinished(req, res, { login: { accountId: person.id } }, { mergeWithLastSubmission: false });

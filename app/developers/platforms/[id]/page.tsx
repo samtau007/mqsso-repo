@@ -3,6 +3,7 @@ import { getPlatform } from "@/lib/clients";
 import { env } from "@/lib/env";
 import { currentDeveloper } from "@/lib/portal";
 import { approve } from "../../actions";
+import OfficialButton from "./Button";
 import { Rotate, SectorGroup } from "./Controls";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +38,9 @@ export default async function PlatformPage({ params }: { params: { id: string } 
           <dt>Discovery</dt><dd><code className="p-code">{`${env.idOrigin}/.well-known/openid-configuration`}</code></dd>
         </dl>
       </div>
+
+      <h2>Your button</h2>
+      <div className="p-card"><OfficialButton /></div>
 
       {p.clientType === "server" || p.noticeUri ? (
         <>
