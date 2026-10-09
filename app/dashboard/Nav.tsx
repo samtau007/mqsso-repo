@@ -13,15 +13,18 @@ const ITEMS = [
   { href: "/dashboard/privacy", label: "Privacy" },
 ];
 
+const INBOX = { href: "/dashboard/inbox", label: "Inbox" };
+
 /** A column on wide screens; a row that scrolls sideways on a phone. */
-export function Nav() {
+export function Nav({ inbox, unread }: { inbox: boolean; unread: number }) {
+  const items = inbox ? [...ITEMS.slice(0, 1), INBOX, ...ITEMS.slice(1)] : ITEMS;
   const path = usePathname() ?? "";
   const active = (href: string) => (href === "/dashboard" ? path === href : path === href || path.startsWith(`${href}/`));
   return (
     <nav className="d-nav" aria-label="Your Muslim Quotient">
-      {ITEMS.map((i) => (
+      {items.map((i) => (
         <Link key={i.href} href={i.href} className={active(i.href) ? "on" : undefined} aria-current={active(i.href) ? "page" : undefined}>
-          {i.label}
+          {i.label}{i === INBOX && unread > 0 ? <span className="d-count" aria-label={`${unread} unread`}>{unread}</span> : null}
         </Link>
       ))}
     </nav>

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { NAME_DAYS } from "@/lib/names";
-import { getPerson } from "@/lib/people";
+import { getPerson, hasEmail } from "@/lib/people";
 import { namesOf, platformCards } from "@/lib/dashboard";
 import { siteClient } from "@/lib/site/oidc";
 import { currentPersonId } from "@/lib/site/session";
@@ -22,9 +22,10 @@ export default async function Privacy() {
     [personId],
   )).rows;
   const codesLeft = await recoveryLeft(personId);
+  const withEmail = await hasEmail(personId);
   const days = Math.min(NAME_DAYS, Math.max(0, Math.ceil((person.nameChangesOn.getTime() - Date.now()) / 86_400_000)));
-  const withEmail = platforms.filter((p) => p.scopes.includes("email"));
-  const relays = withEmail.filter((p) => p.relayAddress);
+  const emailPlatforms = platforms.filter((p) => p.scopes.includes("email"));
+  const relays = emailPlatforms.filter((p) => p.relayAddress);
 
   return (
     <>
@@ -42,8 +43,9 @@ export default async function Privacy() {
 
       <section className="d-card" aria-labelledby="emails">
         <span className="d-label" id="emails">Email each platform sees</span>
-        {withEmail.length === 0 && <p className="d-muted">No platform has your email.</p>}
-        {withEmail.map((p) => (
+        {!withEmail && <p className="d-muted">You joined without an email. Platforms that asked for one have a private address, and their mail waits in your <a className="d-link" href="/dashboard/inbox">Inbox</a>.</p>}
+        {withEmail && emailPlatforms.length === 0 && <p className="d-muted">No platform has your email.</p>}
+        {withEmail && emailPlatforms.map((p) => (
           <form action={emailChoice} className="d-row-line" key={p.clientId} style={{ alignItems: "center" }}>
             <input type="hidden" name="client_id" value={p.clientId} />
             <span style={{ color: "#fff" }}>{p.name}</span>

@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { NAME_DAYS } from "@/lib/names";
-import { getPerson } from "@/lib/people";
+import { inboxUnread } from "@/lib/inbox";
+import { getPerson, hasEmail } from "@/lib/people";
 import { currentPersonId } from "@/lib/site/session";
 import { Nav } from "./Nav";
 import { Shield } from "./Shield";
@@ -17,6 +18,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   if (!personId) redirect("/signin");
   const person = await getPerson(personId);
   if (!person) redirect("/signin");
+  const [withEmail, unread] = await Promise.all([hasEmail(personId), inboxUnread(personId)]);
   const days = Math.min(NAME_DAYS, Math.max(0, Math.ceil((person.nameChangesOn.getTime() - Date.now()) / 86_400_000)));
 
   return (
@@ -35,7 +37,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
         </div>
       </header>
       <div className="d-shell">
-        <Nav />
+        <Nav inbox={!withEmail || unread > 0} unread={unread} />
         <main className="d-body">{children}</main>
       </div>
     </div>

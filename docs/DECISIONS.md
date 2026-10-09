@@ -4,6 +4,8 @@ One line per decision, newest first. Claude Code adds a line here whenever Sami 
 
 | Date | Decision | Who |
 | --- | --- | --- |
+| 2026-10-09 | Two ways to join, side by side: with an email (code), or with no email (a passkey, plus ten recovery codes shown once). No Google account is ever needed | Sami |
+| 2026-10-09 | People with no email get a private inbox on the dashboard for mail platforms send to their relay address: encrypted, text only, no attachments, deleted after 30 days (defaults proposed by Claude; Sami to confirm) | Sami |
 | 2026-10-09 | Prayer location: the person can press "Use my location" and allow the browser to share it; only the position rounded to two decimals (about a kilometre) is kept | Sami |
 | 2026-10-09 | Platforms send entries to Muslim Quotient; Muslim Quotient never pulls. The dashboard is live because platforms send as things happen | Sami |
 | 2026-10-09 | Testing for platforms is a test mode per platform in the developer portal, not a separate sandbox environment | Sami |

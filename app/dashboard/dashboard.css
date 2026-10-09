@@ -112,3 +112,4 @@ button.d-btn.line{border:1px solid #2c3a52}
 @media (min-width:520px){.d-codes ol{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .d-codes code{letter-spacing:.06em;color:#fff}
 @media print{.d-head,.d-nav,.d-card:not(:has(.d-codes)),.d-namecard,.d-title,.d-sub,.d-steps{display:none!important}.d-page{background:#fff;color:#000}.d-codes code{color:#000}html.d-away .d-body{filter:none}}
+.d-count{display:inline-block;margin-left:8px;min-width:20px;padding:0 6px;border-radius:999px;background:#c9b6dc;color:#0c121d;font-size:12px;font-weight:600;text-align:center}

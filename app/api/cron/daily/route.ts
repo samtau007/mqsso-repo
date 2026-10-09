@@ -1,5 +1,6 @@
 import { safeEqual } from "@/lib/crypto";
 import { env } from "@/lib/env";
+import { sweepInbox } from "@/lib/inbox";
 import { retryDueNotices } from "@/lib/notices";
 import { sweepExpired } from "@/lib/oidc/adapter";
 import { rotateDueNames } from "@/lib/people";
@@ -14,5 +15,6 @@ export async function GET(request: Request) {
   const renamed = await rotateDueNames();
   const swept = await sweepExpired();
   const notices = await retryDueNotices();
-  return Response.json({ renamed, swept, notices });
+  const inbox = await sweepInbox();
+  return Response.json({ renamed, swept, notices, inbox });
 }

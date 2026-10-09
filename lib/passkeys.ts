@@ -2,9 +2,11 @@ import {
   generateAuthenticationOptions, generateRegistrationOptions, verifyAuthenticationResponse, verifyRegistrationResponse,
   type AuthenticationResponseJSON, type RegistrationResponseJSON,
 } from "@simplewebauthn/server";
+import { randomUUID } from "node:crypto";
 import { audit } from "./audit";
 import { one, query } from "./db";
 import { env } from "./env";
+import { createPersonWithoutEmail } from "./people";
 
 // Passkeys (WebAuthn). One relying party for the whole of Muslim Quotient, so a passkey made on
 // the dashboard (www.) works on the sign-in pages (id.) and the other way round.
@@ -17,11 +19,12 @@ export function rpId(): string {
 }
 const origins = () => [env.idOrigin, env.siteOrigin];
 
-async function putChallenge(key: string, challenge: string | null, personId: string | null) {
+async function putChallenge(key: string, challenge: string | null, personId: string | null, newPersonId: string | null = null) {
   await query(
-    `insert into webauthn_challenges (id, challenge, person_id, expires_at) values ($1, $2, $3, now() + make_interval(mins => $4))
-     on conflict (id) do update set challenge = excluded.challenge, person_id = coalesce(excluded.person_id, webauthn_challenges.person_id), expires_at = excluded.expires_at`,
-    [key, challenge, personId, CHALLENGE_MINUTES],
+    `insert into webauthn_challenges (id, challenge, person_id, new_person_id, expires_at) values ($1, $2, $3, $5, now() + make_interval(mins => $4))
+     on conflict (id) do update set challenge = excluded.challenge, person_id = coalesce(excluded.person_id, webauthn_challenges.person_id),
+       new_person_id = excluded.new_person_id, expires_at = excluded.expires_at`,
+    [key, challenge, personId, CHALLENGE_MINUTES, newPersonId],
   );
 }
 
@@ -56,8 +59,10 @@ export async function shouldOffer(personId: string): Promise<boolean> {
   return !!r && !r.has && (!r.offered || Date.now() - r.offered.getTime() > 30 * 86_400_000);
 }
 
-export async function registrationOptions(key: string, personId: string) {
-  const existing = await query<{ id: string; transports: string[] }>("select id, transports from passkeys where person_id = $1", [personId]);
+export async function registrationOptions(key: string, personId: string, isNew = false) {
+  const existing = isNew
+    ? { rows: [] as { id: string; transports: string[] }[] }
+    : await query<{ id: string; transports: string[] }>("select id, transports from passkeys where person_id = $1", [personId]);
   const options = await generateRegistrationOptions({
     rpName: "Muslim Quotient",
     rpID: rpId(),
@@ -69,8 +74,35 @@ export async function registrationOptions(key: string, personId: string) {
     excludeCredentials: existing.rows.map((c) => ({ id: c.id, transports: c.transports as AuthenticatorTransport[] })),
     authenticatorSelection: { residentKey: "required", userVerification: "preferred" },
   });
-  await putChallenge(key, options.challenge, personId);
+  if (isNew) await putChallenge(key, options.challenge, null, personId);
+  else await putChallenge(key, options.challenge, personId);
   return options;
+}
+
+/** Joining with no email: the new person's ID is chosen now and carried by the passkey. */
+export async function newAccountOptions(key: string) {
+  return registrationOptions(key, randomUUID(), true);
+}
+
+/** Makes the passkey and, with it, the person. Returns the new person's ID. */
+export async function finishNewAccount(key: string, response: RegistrationResponseJSON, userAgent?: string): Promise<string | null> {
+  const c = await one<{ challenge: string | null; new_person_id: string | null }>(
+    "delete from webauthn_challenges where id = $1 and expires_at > now() returning challenge, new_person_id",
+    [key],
+  );
+  if (!c?.challenge || !c.new_person_id) return null;
+  const v = await verifyRegistrationResponse({
+    response, expectedChallenge: c.challenge, expectedOrigin: origins(), expectedRPID: rpId(), requireUserVerification: false,
+  }).catch(() => null);
+  if (!v?.verified || !v.registrationInfo) return null;
+  const person = await createPersonWithoutEmail(c.new_person_id);
+  const cred = v.registrationInfo.credential;
+  await query(
+    "insert into passkeys (id, person_id, public_key, counter, transports, name) values ($1, $2, $3, $4, $5, $6)",
+    [cred.id, person.id, Buffer.from(cred.publicKey), cred.counter, cred.transports ?? [], deviceName(userAgent)],
+  );
+  await audit({ actor: `person:${person.id}`, action: "passkey.added", personId: person.id });
+  return person.id;
 }
 
 type AuthenticatorTransport = "ble" | "cable" | "hybrid" | "internal" | "nfc" | "smart-card" | "usb";

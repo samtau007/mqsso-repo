@@ -75,3 +75,25 @@ export async function rotateDueNames(now: Date = new Date()): Promise<number> {
   }
   return due.rowCount ?? 0;
 }
+
+/**
+ * A person who joined with a passkey and no email. Their ID was chosen before the passkey was
+ * made, because the passkey carries it.
+ */
+export async function createPersonWithoutEmail(id: string): Promise<Person> {
+  return tx(async (c) => {
+    const name = newGivenName();
+    const p = (await c.query<Row>(
+      "insert into people (id, given_name, name_changes_on, passkey_offered_at) values ($1, $2, $3, now()) returning id, given_name, created_at, name_changes_on",
+      [id, name, nextChange()],
+    )).rows[0];
+    await c.query("insert into given_names (person_id, name, valid_from) values ($1, $2, $3)", [p.id, name, p.created_at]);
+    await audit({ actor: `person:${p.id}`, action: "person.created", personId: p.id, detail: { email: false } }, c);
+    return toPerson(p);
+  });
+}
+
+/** Whether the person gave an email at all. People who joined with a passkey alone did not. */
+export async function hasEmail(personId: string): Promise<boolean> {
+  return !!(await one("select 1 from email_vault where person_id = $1", [personId]));
+}

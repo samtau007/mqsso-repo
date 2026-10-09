@@ -736,7 +736,7 @@ test("a passkey and recovery codes sign the person in without an email code", as
   await page.context().clearCookies();
   s = await startSignIn(config, CALLBACK_A);
   await page.goto(s.url.href);
-  await page.click("text=Cannot get to your email? Use a recovery code");
+  await page.click("text=Use a recovery code");
   await fitsNarrowScreen("id-recover");
   await page.fill("#email", PERSON);
   await page.fill("#recovery", codes[0].toLowerCase());
@@ -749,7 +749,7 @@ test("a passkey and recovery codes sign the person in without an email code", as
   await page.context().clearCookies();
   s = await startSignIn(config, CALLBACK_A);
   await page.goto(s.url.href);
-  await page.click("text=Cannot get to your email? Use a recovery code");
+  await page.click("text=Use a recovery code");
   await page.fill("#email", PERSON);
   await page.fill("#recovery", codes[0]);
   await page.click("button:has-text('Sign in')");
@@ -1083,6 +1083,88 @@ test("the relay forwards mail to the person's real inbox, untracked, until they 
   await page.waitForSelector(".d-row-line:has-text('Halaqa Notes') button.on:has-text('On')");
 });
 
+test("joining with no email: a passkey, recovery codes, and an inbox for platform mail", async () => {
+  const context = await browser.newContext({ viewport: { width: 360, height: 780 } });
+  const p = await context.newPage();
+  const cdp = await context.newCDPSession(p);
+  await cdp.send("WebAuthn.enable");
+  await cdp.send("WebAuthn.addVirtualAuthenticator", {
+    options: { protocol: "ctap2", transport: "internal", hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true },
+  });
+
+  // Both ways in sit side by side: email, or a passkey with no email.
+  const config = await platform(subs.a.clientId, subs.a.clientSecret);
+  const s = await startSignIn(config, CALLBACK_A);
+  await p.goto(s.url.href);
+  assert.ok(await p.isVisible("#email"));
+  await p.click("button:has-text('Create my ID with a passkey, no email')");
+  await p.waitForSelector("#pk-codes li");
+  const codes = await p.$$eval("#pk-codes li", (els) => els.map((e) => e.textContent));
+  assert.equal(codes.length, 10);
+  assert.equal(await p.isVisible("#email"), false, "the email form steps aside once the ID is made");
+  await p.screenshot({ path: path.join(ROOT, ".mq-test", "id-no-email-codes.png"), fullPage: true });
+  await p.click("button:has-text('I have saved them. Continue')");
+
+  // The permission screen offers no "Share my email": there is none.
+  await p.waitForSelector("text=You joined without an email.");
+  assert.equal(await p.isVisible("text=Share my email"), false);
+  await p.click("button:has-text('Allow')");
+  await finishAt(p, s);
+  const tokens = await oidc.authorizationCodeGrant(config, new URL(s.callback()), { pkceCodeVerifier: s.verifier, expectedState: s.state });
+  await s.cleanup();
+  const relay = tokens.claims().email;
+  assert.match(relay, /@relay\.muslimquotient\.com$/);
+  assert.equal((await db("select count(*)::int as n from email_vault v join connections c on c.person_id = v.person_id where c.sub = $1", [tokens.claims().sub]))[0].n, 0, "no email is held");
+
+  // Mail the platform sends to the private address waits in the inbox, sealed.
+  const basic = `Basic ${Buffer.from("relay:relay-secret").toString("base64")}`;
+  const r = await localFetch(`${SITE}/api/relay/inbound`, {
+    method: "POST", headers: { "content-type": "application/json", authorization: basic },
+    body: JSON.stringify({
+      FromFull: { Email: "hello@halaqa.example", Name: "Halaqa Notes" }, ToFull: [{ Email: relay }], OriginalRecipient: relay,
+      Subject: "Welcome to Halaqa Notes", HtmlBody: "<p>Assalamu alaykum.</p><img src='https://tracker.example/pixel.gif'><p>Your first halaqa is on Friday.</p>",
+    }),
+  });
+  assert.deepEqual((await r.json()).outcomes, [{ address: relay, result: "kept" }]);
+  const [{ sealed }] = await db("select sealed from inbox_messages order by received_at desc limit 1");
+  assert.ok(!sealed.includes("Welcome"), "stored only encrypted");
+
+  await p.goto(`${SITE}/signin`);
+  await finishAtSite(p);
+  await p.click(".d-nav a:has-text('Inbox')");
+  await p.waitForSelector("[data-testid=inbox-row]:has-text('Welcome to Halaqa Notes')");
+  await p.click("[data-testid=inbox-row]");
+  await p.waitForSelector("text=Your first halaqa is on Friday.");
+  assert.equal(await p.$("img"), null, "no image from the sender loads");
+  await p.screenshot({ path: path.join(ROOT, ".mq-test", "dash-inbox-message.png"), fullPage: true });
+  await p.click("button:has-text('Delete')");
+  await p.waitForSelector("text=Nothing here.");
+  await context.close();
+
+  // Lost the device: a recovery code alone signs them back in.
+  const other = await browser.newContext({ viewport: { width: 360, height: 780 } });
+  const q = await other.newPage();
+  const s2 = await startSignIn(config, CALLBACK_A);
+  await q.goto(s2.url.href);
+  await q.click("text=Use a recovery code");
+  await q.fill("#recovery", codes[3]);
+  await q.click("button:has-text('Sign in')");
+  await finishAt(q, s2);
+  const back = await oidc.authorizationCodeGrant(config, new URL(s2.callback()), { pkceCodeVerifier: s2.verifier, expectedState: s2.state });
+  await s2.cleanup();
+  assert.equal(back.claims().sub, tokens.claims().sub);
+  await other.close();
+});
+
+/** On muslimquotient.com's sign-in: allows if asked, and lands on the dashboard. */
+async function finishAtSite(p) {
+  for (let i = 0; i < 30 && !p.url().startsWith(`${SITE}/dashboard`); i++) {
+    if (await p.$("button:has-text('Allow')")) await p.click("button:has-text('Allow')");
+    await p.waitForTimeout(200);
+  }
+  await p.waitForURL(`${SITE}/dashboard`);
+}
+
 test("the status page says whether each part works, with no usage numbers", async () => {
   const fresh = await browser.newPage({ viewport: { width: 360, height: 780 } });
   await fresh.goto(`${SITE}/status`);
@@ -1099,7 +1181,7 @@ test("the daily job is protected and runs", async () => {
   assert.equal(no.status, 401);
   const yes = await localFetch(`http://localhost:${PORT}/api/cron/daily`, { headers: { authorization: "Bearer test-cron" } });
   assert.equal(yes.status, 200);
-  assert.deepEqual(Object.keys(await yes.json()).sort(), ["notices", "renamed", "swept"]);
+  assert.deepEqual(Object.keys(await yes.json()).sort(), ["inbox", "notices", "renamed", "swept"]);
 });
 
 test("the website does not answer for the sign-in service or the portal", async () => {

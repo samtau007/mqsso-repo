@@ -3,6 +3,7 @@ import { audit } from "./audit";
 import { decrypt, token } from "./crypto";
 import { one, query, tx } from "./db";
 import { env } from "./env";
+import { inboxList, inboxRead as inboxOpenQuiet } from "./inbox";
 import { sendNotice } from "./notices";
 
 // What a person changes from their own dashboard. Every function here takes the person's
@@ -66,6 +67,7 @@ export async function withdrawPermissions(personId: string, clientId: string, sc
  * reads the ID token or userinfo. A relay address, once made for a platform, is kept.
  */
 export async function setEmailChoice(personId: string, clientId: string, choice: "share" | "hide") {
+  if (choice === "share" && !(await one("select 1 from email_vault where person_id = $1", [personId]))) return;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       await query(
@@ -208,6 +210,7 @@ export async function exportRecord(personId: string) {
     entries: entries.rows,
     goals: goals.rows,
     settings,
+    inbox: await Promise.all((await inboxList(personId)).map(async (m) => ({ ...m, ...(await inboxOpenQuiet(personId, m.id)) }))),
   };
 }
 

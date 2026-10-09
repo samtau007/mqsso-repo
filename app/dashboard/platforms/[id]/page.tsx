@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { platformDetail } from "@/lib/dashboard";
+import { hasEmail } from "@/lib/people";
 import { currentPersonId } from "@/lib/site/session";
 import { disconnect, emailChoice, withdraw } from "../../actions";
 import { ago, Held, PART_LABEL, seesLabel, Tile } from "../../parts";
@@ -10,6 +11,7 @@ export default async function PlatformPage({ params }: { params: { id: string } 
   if (!personId) redirect("/signin");
   const p = await platformDetail(personId, params.id);
   if (!p) notFound();
+  const withEmail = await hasEmail(personId);
   const permissions = p.scopes.filter((s) => s !== "openid" && s !== "email");
 
   return (
@@ -51,9 +53,9 @@ export default async function PlatformPage({ params }: { params: { id: string } 
           <form action={emailChoice} className="d-choice">
             <input type="hidden" name="client_id" value={p.clientId} />
             <button className={p.emailChoice === "hide" ? "on" : undefined} name="choice" value="hide" type="submit" aria-pressed={p.emailChoice === "hide"}>Hidden · relay address</button>
-            <button className={p.emailChoice === "share" ? "on" : undefined} name="choice" value="share" type="submit" aria-pressed={p.emailChoice === "share"}>My real email</button>
+            {withEmail && <button className={p.emailChoice === "share" ? "on" : undefined} name="choice" value="share" type="submit" aria-pressed={p.emailChoice === "share"}>My real email</button>}
           </form>
-          {p.emailChoice === "hide" && p.relayAddress && <p className="d-hint" style={{ margin: 0 }}>It writes to {p.relayAddress}, which forwards to you.</p>}
+          {p.emailChoice === "hide" && p.relayAddress && <p className="d-hint" style={{ margin: 0 }}>It writes to {p.relayAddress}, {withEmail ? "which forwards to you" : "and its mail waits in your Inbox"}.</p>}
         </section>
       )}
 

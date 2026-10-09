@@ -4,12 +4,13 @@ import { codeErrorMessage, issueCode, pendingEmail, verifyCode } from "../codes"
 import { maySignIn } from "../clients";
 import { getConnection, hasConnections, saveConnection, subFor, type EmailChoice } from "../connections";
 import {
-  authenticationOptions, finishAuthentication, finishRegistration, offer, peekChallenge, registrationOptions, shouldOffer, takeChallenge,
+  authenticationOptions, finishAuthentication, finishNewAccount, finishRegistration, newAccountOptions, offer, peekChallenge,
+  registrationOptions, shouldOffer, takeChallenge,
 } from "../passkeys";
-import { findOrCreatePerson, getPerson } from "../people";
-import { RecoveryError, useRecoveryCode } from "../recovery";
+import { findOrCreatePerson, getPerson, hasEmail } from "../people";
+import { makeRecoveryCodes, RecoveryError, useRecoveryCode } from "../recovery";
 import { knownScopes, scopeInfo } from "../scopes";
-import { codeStep, consentStep, emailStep, errorPage, offerStep, recoverStep } from "./pages";
+import { codeStep, consentStep, emailStep, errorPage, offerStep, recoverStep, savedStep } from "./pages";
 import { provider, sectorGroupOf } from "./provider";
 
 function send(res: ServerResponse, status: number, html: string, nonce?: string) {
@@ -103,6 +104,7 @@ async function renderConsent(res: ServerResponse, details: Details, error?: stri
     emailRequested: scopes.includes("email"),
     emailChoice: conn?.emailChoice ?? null,
     relayAddress: conn?.relayAddress ?? null,
+    hasEmail: await hasEmail(accountId),
     error,
   }));
 }
@@ -129,6 +131,7 @@ export async function handleInteraction(req: IncomingMessage, res: ServerRespons
   if (req.method === "GET" && !action) {
     if (prompt === "login") {
       const email = await pendingEmail("signin", uid);
+      if (await peekChallenge(`saved:${uid}`)) return send(res, 200, savedStep({ uid, clientName }));
       if (await peekChallenge(`offer:${uid}`)) return sendOffer(res, uid, clientName);
       if (url.searchParams.get("step") === "recover") return send(res, 200, recoverStep({ uid, clientName }));
       if (email && url.searchParams.get("step") !== "email") return send(res, 200, codeStep({ uid, email, clientName }));
@@ -220,6 +223,28 @@ export async function handleInteraction(req: IncomingMessage, res: ServerRespons
       return loginJson(personId);
     }
 
+    case "pknewopts": {
+      if (prompt !== "login") return json(res, 400, { error: "This sign-in has expired. Start again." });
+      return json(res, 200, await newAccountOptions(`new:${uid}`));
+    }
+
+    case "pknew": {
+      // Joining with no email: the passkey makes the person, and ten recovery codes are shown
+      // once, because without an email they are the only way back in.
+      if (prompt !== "login") return json(res, 400, { error: "This sign-in has expired. Start again." });
+      const personId = await finishNewAccount(`new:${uid}`, body() as never, req.headers["user-agent"]);
+      if (!personId) return json(res, 400, { error: "Your ID could not be made with that passkey. Try again, or use your email." });
+      const codes = await makeRecoveryCodes(personId);
+      await offer(`saved:${uid}`, personId);
+      return json(res, 200, { codes, next: `/interaction/${uid}/saved` });
+    }
+
+    case "saved": {
+      const o = await takeChallenge(`saved:${uid}`);
+      if (prompt !== "login" || !o?.personId) return redirect(res, `/interaction/${uid}`);
+      return p.interactionFinished(req, res, { login: { accountId: o.personId } }, { mergeWithLastSubmission: false });
+    }
+
     case "pkopts": {
       if (prompt !== "login") return json(res, 400, { error: "This sign-in has expired. Start again." });
       return json(res, 200, await authenticationOptions(`auth:${uid}`));
@@ -257,7 +282,8 @@ export async function handleInteraction(req: IncomingMessage, res: ServerRespons
       if (allowed.includes("email")) {
         const c = form.get("email_choice");
         if (c !== "share" && c !== "hide") return renderConsent(res, details, "Choose which email this platform should get.", 400);
-        emailChoice = c;
+        // Someone with no email can only be given a relay address.
+        emailChoice = c === "share" && !(await hasEmail(accountId)) ? "hide" : c;
       }
 
       const grant = new p.Grant({ accountId, clientId: client.clientId });

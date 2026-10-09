@@ -9,6 +9,7 @@ import { decrypt, encrypt, token } from "@/lib/crypto";
 import { env } from "@/lib/env";
 import { mergeAccounts, mergePreview, personByEmail } from "@/lib/merge";
 import { finishRegistration, registrationOptions, removePasskey } from "@/lib/passkeys";
+import { inboxDelete } from "@/lib/inbox";
 import { makeRecoveryCodes } from "@/lib/recovery";
 import { setRelayOff } from "@/lib/relay";
 import {
@@ -215,4 +216,11 @@ export async function relaySwitch(form: FormData) {
   const personId = await me();
   await setRelayOff(personId, id(form, "client_id"), form.get("off") === "yes");
   revalidatePath("/dashboard/privacy");
+}
+
+export async function removeMessage(form: FormData) {
+  const personId = await me();
+  await inboxDelete(personId, id(form, "message"));
+  revalidatePath("/dashboard/inbox");
+  redirect("/dashboard/inbox");
 }

@@ -3,6 +3,7 @@ import { audit } from "./audit";
 import { decrypt } from "./crypto";
 import { one, query } from "./db";
 import { env } from "./env";
+import { keepInInbox, plainText } from "./inbox";
 
 // The email relay. A platform writes to a person's relay address (abc@relay.muslimquotient.com);
 // Postmark receives it and posts it here; we forward it to the person's real inbox through
@@ -48,7 +49,7 @@ async function target(address: string): Promise<Target | null> {
 
 const isSpam = (m: Inbound) => (m.Headers ?? []).some((h) => h.Name?.toLowerCase() === "x-spam-status" && /^yes/i.test(h.Value ?? ""));
 
-export type Outcome = { address: string; result: "forwarded" | "dropped" | "unknown" | "failed"; reason?: string };
+export type Outcome = { address: string; result: "forwarded" | "kept" | "dropped" | "unknown" | "failed"; reason?: string };
 
 /** Forwards one inbound message to every relay address it was sent to. */
 export async function relayInbound(m: Inbound): Promise<Outcome[]> {
@@ -61,7 +62,7 @@ export async function relayInbound(m: Inbound): Promise<Outcome[]> {
   const out: Outcome[] = [];
   for (const address of addresses) {
     const t = await target(address);
-    if (!t || !t.emailEnc) {
+    if (!t) {
       out.push({ address, result: "unknown" });
       continue;
     }
@@ -69,6 +70,18 @@ export async function relayInbound(m: Inbound): Promise<Outcome[]> {
     if (drop) {
       await audit({ actor: "relay", action: "relay.dropped", personId: t.personId, clientId: t.clientId, detail: { reason: drop } });
       out.push({ address, result: "dropped", reason: drop });
+      continue;
+    }
+    if (!t.emailEnc) {
+      // Joined with no email: the message waits in their Muslim Quotient inbox instead.
+      await keepInInbox(t.personId, t.clientId, {
+        from: m.FromFull?.Name || m.FromFull?.Email || t.platform,
+        fromEmail: m.FromFull?.Email ?? null,
+        subject: m.Subject || "(no subject)",
+        text: m.TextBody || (m.HtmlBody ? plainText(m.HtmlBody) : ""),
+      });
+      await audit({ actor: "relay", action: "relay.kept", personId: t.personId, clientId: t.clientId });
+      out.push({ address, result: "kept" });
       continue;
     }
     const ok = await forward(m, t, decrypt(t.emailEnc));
