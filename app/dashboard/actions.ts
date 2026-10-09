@@ -10,6 +10,7 @@ import { env } from "@/lib/env";
 import { mergeAccounts, mergePreview, personByEmail } from "@/lib/merge";
 import { finishRegistration, registrationOptions, removePasskey } from "@/lib/passkeys";
 import { makeRecoveryCodes } from "@/lib/recovery";
+import { setRelayOff } from "@/lib/relay";
 import {
   addGoal, deleteAccount, disconnectPlatform, GoalError, saveSettings, setEmailChoice, setGoalStatus,
   SettingsError, withdrawPermissions,
@@ -208,4 +209,10 @@ export async function mergeStep(prev: MergeState, form: FormData): Promise<Merge
   cookies().delete({ name: MERGE, path: "/dashboard" });
   revalidatePath("/dashboard", "layout");
   redirect("/dashboard?merged=1");
+}
+
+export async function relaySwitch(form: FormData) {
+  const personId = await me();
+  await setRelayOff(personId, id(form, "client_id"), form.get("off") === "yes");
+  revalidatePath("/dashboard/privacy");
 }

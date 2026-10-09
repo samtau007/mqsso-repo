@@ -131,6 +131,8 @@ async function startServer(extra = {}) {
       MQ_ALLOW_LOCAL_NOTICES: "1",
       // Passkeys: one relying party for every test host, as muslimquotient.com is in production.
       MQ_RP_ID: "mq.localhost",
+      // The relay talks to a stand-in for Postmark on this machine.
+      POSTMARK_SERVER_TOKEN: "test-postmark", POSTMARK_API_BASE: "http://127.0.0.1:3110", MQ_RELAY_INBOUND_SECRET: "relay-secret",
       ...extra,
     },
     stdio: ["ignore", "inherit", "inherit"],
@@ -1017,6 +1019,79 @@ test("test mode: only testers sign in, test entries stay out of the picture, and
   assert.equal((await db("select count(*)::int as n from entries where client_id = $1", [t.clientId]))[0].n, 0);
   assert.equal((await db("select count(*)::int as n from connections where client_id = $1", [t.clientId]))[0].n, 0);
   await assert.rejects(oidc.refreshTokenGrant(config, tokens.refresh_token));
+});
+
+// Email relay and status -------------------------------------------------------------------------
+
+test("the relay forwards mail to the person's real inbox, untracked, until they switch it off", async () => {
+  const sent = [];
+  const postmark = http.createServer((req, res) => {
+    let raw = "";
+    req.on("data", (c) => (raw += c));
+    req.on("end", () => {
+      sent.push({ url: req.url, token: req.headers["x-postmark-server-token"], body: JSON.parse(raw) });
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ ErrorCode: 0, Message: "OK" }));
+    });
+  });
+  callbackServers.push(postmark);
+  await new Promise((r) => postmark.listen(3110, r));
+
+  const [{ relay_address: relay }] = await db(
+    "select c.relay_address from connections c where c.client_id = $1 and c.sub = $2",
+    [subs.a.clientId, subs.subA],
+  );
+  assert.match(relay, /@relay\.muslimquotient\.com$/);
+  const inbound = (auth) => localFetch(`${SITE}/api/relay/inbound`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(auth ? { authorization: auth } : {}) },
+    body: JSON.stringify({
+      FromFull: { Email: "hello@halaqa.example", Name: "Halaqa Notes" },
+      ToFull: [{ Email: relay.toUpperCase() }],
+      OriginalRecipient: relay,
+      Subject: "Your Friday halaqa",
+      TextBody: "See you at 7.",
+      Headers: [{ Name: "X-Spam-Status", Value: "No" }],
+    }),
+  });
+  const basic = `Basic ${Buffer.from("relay:relay-secret").toString("base64")}`;
+
+  assert.equal((await inbound(null)).status, 401);
+  assert.equal((await inbound(`Basic ${Buffer.from("relay:wrong").toString("base64")}`)).status, 401);
+
+  const r = await inbound(basic);
+  assert.equal(r.status, 200);
+  assert.deepEqual((await r.json()).outcomes, [{ address: relay, result: "forwarded" }]);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].url, "/email");
+  assert.equal(sent[0].token, "test-postmark");
+  assert.equal(sent[0].body.To, PERSON, "to the real inbox");
+  assert.equal(sent[0].body.ReplyTo, "hello@halaqa.example");
+  assert.equal(sent[0].body.Subject, "Your Friday halaqa");
+  assert.equal(sent[0].body.TrackOpens, false);
+  assert.equal(sent[0].body.TrackLinks, "None");
+  assert.match(sent[0].body.From, /^"Halaqa Notes via Muslim Quotient" </);
+
+  // The person switches that relay off: mail to it is dropped.
+  await page.goto(`${SITE}/dashboard/privacy`);
+  await page.click(".d-row-line:has-text('Halaqa Notes') button:has-text('Off')");
+  await page.waitForSelector(".d-row-line:has-text('Halaqa Notes') button.on:has-text('Off')");
+  const off = await inbound(basic);
+  assert.deepEqual((await off.json()).outcomes, [{ address: relay, result: "dropped", reason: "switched off" }]);
+  assert.equal(sent.length, 1, "nothing more was sent");
+  await page.click(".d-row-line:has-text('Halaqa Notes') button:has-text('On')");
+  await page.waitForSelector(".d-row-line:has-text('Halaqa Notes') button.on:has-text('On')");
+});
+
+test("the status page says whether each part works, with no usage numbers", async () => {
+  const fresh = await browser.newPage({ viewport: { width: 360, height: 780 } });
+  await fresh.goto(`${SITE}/status`);
+  await fresh.waitForSelector("text=Everything is working");
+  assert.equal(await fresh.locator("[data-testid=status-row]").count(), 5);
+  assert.ok(await fresh.isVisible("[data-testid=status-row]:has-text('Email relay') >> text=Working"));
+  const width = await fresh.evaluate(() => document.documentElement.scrollWidth);
+  assert.ok(width <= 360);
+  await fresh.close();
 });
 
 test("the daily job is protected and runs", async () => {
