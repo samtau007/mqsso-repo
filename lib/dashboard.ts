@@ -81,7 +81,7 @@ export async function overview(personId: string, siteClientId: string, now: Date
 
 export type PlatformCard = {
   clientId: string; name: string; website: string; scopes: string[]; emailChoice: "share" | "hide" | null;
-  relayAddress: string | null; sub: string; connectedAt: Date; testMode: boolean;
+  relayAddress: string | null; relayOff: boolean; sub: string; connectedAt: Date; testMode: boolean;
   added: { learning: number; practice: number; reflection: number };
   practiceDaysThisMonth: number;
   latest: { type: string; title: string; detail: string | null; at: Date } | null;
@@ -99,7 +99,7 @@ export async function platformCards(personId: string, siteClientId: string, now:
   return asPerson(personId, async (c) => {
     const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const r = await c.query(
-      `select c.client_id, cl.name, cl.website, cl.approved, c.scopes, c.email_choice, c.relay_address, c.sub, c.connected_at,
+      `select c.client_id, cl.name, cl.website, cl.approved, c.scopes, c.email_choice, c.relay_address, c.relay_off, c.sub, c.connected_at,
               (select count(*) from entries e where e.client_id = c.client_id and e.type = 'learning') as learning,
               (select count(*) from entries e where e.client_id = c.client_id and e.type = 'practice') as practice,
               (select count(*) from entries e where e.client_id = c.client_id and e.type = 'reflection') as reflection,
@@ -115,7 +115,7 @@ export async function platformCards(personId: string, siteClientId: string, now:
     );
     return r.rows.map((x) => ({
       clientId: x.client_id, name: x.name ?? "A platform", website: x.website ?? "", scopes: x.scopes, emailChoice: x.email_choice,
-      relayAddress: x.relay_address, sub: x.sub, connectedAt: x.connected_at, testMode: x.approved === false,
+      relayAddress: x.relay_address, relayOff: x.relay_off, sub: x.sub, connectedAt: x.connected_at, testMode: x.approved === false,
       added: { learning: Number(x.learning), practice: Number(x.practice), reflection: Number(x.reflection) },
       practiceDaysThisMonth: Number(x.practice_days),
       latest: x.l_title ? { type: x.l_type, title: x.l_title, detail: detailOf(x), at: x.l_at } : null,

@@ -6,7 +6,7 @@ import { siteClient } from "@/lib/site/oidc";
 import { currentPersonId } from "@/lib/site/session";
 import { query } from "@/lib/db";
 import { recoveryLeft } from "@/lib/recovery";
-import { emailChoice, removeKey } from "../actions";
+import { emailChoice, relaySwitch, removeKey } from "../actions";
 import { DeleteForm } from "../Forms";
 import { ago } from "../parts";
 import { AddPasskey, RecoveryCodes } from "../Safety";
@@ -58,8 +58,17 @@ export default async function Privacy() {
       {relays.length > 0 && (
         <section className="d-card" aria-labelledby="relays">
           <span className="d-label" id="relays">Your relay addresses</span>
-          {relays.map((p) => <div className="d-row-line" key={p.clientId}><span>{p.name}</span><span style={{ overflowWrap: "anywhere" }}>{p.relayAddress}</span></div>)}
-          <p className="d-hint" style={{ margin: 0 }}>Mail to these reaches your real inbox. Each platform has its own.</p>
+          {relays.map((p) => (
+            <form action={relaySwitch} className="d-row-line" key={p.clientId} style={{ alignItems: "center" }}>
+              <input type="hidden" name="client_id" value={p.clientId} />
+              <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}><span style={{ color: "#fff" }}>{p.name}</span><small className="d-hint" style={{ overflowWrap: "anywhere" }}>{p.relayAddress}</small></span>
+              <span className="d-choice">
+                <button className={p.relayOff ? undefined : "on"} name="off" value="no" type="submit" aria-pressed={!p.relayOff}>On</button>
+                <button className={p.relayOff ? "on" : undefined} name="off" value="yes" type="submit" aria-pressed={p.relayOff}>Off</button>
+              </span>
+            </form>
+          ))}
+          <p className="d-hint" style={{ margin: 0 }}>Mail to these reaches your real inbox. Each platform has its own. Switch one off and mail to it is dropped.</p>
         </section>
       )}
 
