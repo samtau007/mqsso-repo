@@ -29,7 +29,7 @@ export default async function PortalHome() {
         <ul className="p-list">
           {mine.map((p) => (
             <li key={p.clientId}>
-              <a href={`/platforms/${p.clientId}`}><span>{p.name}</span><span className={`p-tag${p.approved ? " on" : ""}`}>{p.approved ? "Approved" : "Waiting for approval"}</span></a>
+              <a href={`/platforms/${p.clientId}`}><span>{p.name}</span><span className={`p-tag${p.approved ? " on" : ""}`}>{p.approved ? "Live" : p.reviewRequestedAt ? "Review requested" : "Test mode"}</span></a>
             </li>
           ))}
         </ul>
@@ -43,7 +43,7 @@ export default async function PortalHome() {
             <ul className="p-list">
               {all.map((p) => (
                 <li key={p.clientId}>
-                  <a href={`/platforms/${p.clientId}`}><span>{p.name}</span><span className={`p-tag${p.approved ? " on" : ""}`}>{p.approved ? "Approved" : "Waiting for approval"}</span></a>
+                  <a href={`/platforms/${p.clientId}`}><span>{p.name}</span><span className={`p-tag${p.approved ? " on" : ""}`}>{p.approved ? "Live" : p.reviewRequestedAt ? "Review requested" : "Test mode"}</span></a>
                 </li>
               ))}
             </ul>

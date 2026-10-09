@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { codeErrorMessage, issueCode, pendingEmail, verifyCode } from "../codes";
+import { maySignIn } from "../clients";
 import { getConnection, hasConnections, saveConnection, subFor, type EmailChoice } from "../connections";
 import {
   authenticationOptions, finishAuthentication, finishRegistration, offer, peekChallenge, registrationOptions, shouldOffer, takeChallenge,
@@ -30,8 +31,16 @@ function json(res: ServerResponse, status: number, body: unknown) {
 
 const newNonce = () => randomBytes(16).toString("base64");
 
+function testModeRefusal(name: string) {
+  return errorPage("This platform is in test mode", `<p>${escapeHtml(name)} is still being tested. Until Muslim Quotient approves it, only the people its developer listed as testers can sign in.</p>`);
+}
+
+function escapeHtml(s: string) {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+}
+
 /** The email step, with the passkey button and its script. */
-function sendEmailStep(res: ServerResponse, status: number, o: { uid: string; clientName: string; email?: string; error?: string }) {
+function sendEmailStep(res: ServerResponse, status: number, o: { uid: string; clientName: string; testMode?: boolean; email?: string; error?: string }) {
   const nonce = newNonce();
   return send(res, status, emailStep({ ...o, nonce }), nonce);
 }
@@ -82,6 +91,7 @@ async function renderConsent(res: ServerResponse, details: Details, error?: stri
   const accountId = details.session!.accountId;
   const person = await getPerson(accountId);
   if (!person) return send(res, 400, errorPage("This sign-in could not continue", "<p>Please go back and start again.</p>"));
+  if (!(await maySignIn(client.clientId, accountId))) return send(res, 403, testModeRefusal(client.clientName ?? "This platform"));
   const scopes = await requestedScopes(details, client);
   const conn = await getConnection(accountId, client.clientId);
   return send(res, status, consentStep({
@@ -122,7 +132,7 @@ export async function handleInteraction(req: IncomingMessage, res: ServerRespons
       if (await peekChallenge(`offer:${uid}`)) return sendOffer(res, uid, clientName);
       if (url.searchParams.get("step") === "recover") return send(res, 200, recoverStep({ uid, clientName }));
       if (email && url.searchParams.get("step") !== "email") return send(res, 200, codeStep({ uid, email, clientName }));
-      return sendEmailStep(res, 200, { uid, clientName });
+      return sendEmailStep(res, 200, { uid, clientName, testMode: client?.metadata().mq_test_mode === true });
     }
     if (prompt === "consent") return renderConsent(res, details);
     return send(res, 400, errorPage("This sign-in could not continue", "<p>Go back to the platform you came from and start again.</p>"));
@@ -237,6 +247,7 @@ export async function handleInteraction(req: IncomingMessage, res: ServerRespons
     case "confirm": {
       if (prompt !== "consent" || !client) return redirect(res, `/interaction/${uid}`);
       const accountId = details.session!.accountId;
+      if (!(await maySignIn(client.clientId, accountId))) return send(res, 403, testModeRefusal(clientName));
       const requested = await requestedScopes(details, client);
       const ticked = new Set(form.getAll("scope"));
       const allowed = requested.filter((s) => s === "openid" || ticked.has(s));

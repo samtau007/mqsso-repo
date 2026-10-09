@@ -36,14 +36,14 @@ export async function overview(personId: string, siteClientId: string, now: Date
          count(*) filter (where type = 'learning') as learning,
          count(distinct (occurred_at at time zone tz)::date) filter (where type = 'practice') as practice_days,
          count(*) filter (where type = 'reflection') as reflection
-       from entries where occurred_at >= $1`,
+       from entries where occurred_at >= $1 and not test`,
       [monthStart],
     )).rows[0];
 
     const ranges = await c.query<{ title: string; range_low: string; range_high: string; range_of: string; name: string | null; occurred_at: Date }>(
       `select distinct on (e.title) e.title, e.range_low, e.range_high, e.range_of, cl.name, e.occurred_at
          from entries e left join clients cl on cl.client_id = e.client_id
-        where e.type = 'reflection'
+        where e.type = 'reflection' and not e.test
         order by e.title, e.occurred_at desc`,
     );
 
@@ -81,7 +81,7 @@ export async function overview(personId: string, siteClientId: string, now: Date
 
 export type PlatformCard = {
   clientId: string; name: string; website: string; scopes: string[]; emailChoice: "share" | "hide" | null;
-  relayAddress: string | null; sub: string; connectedAt: Date;
+  relayAddress: string | null; sub: string; connectedAt: Date; testMode: boolean;
   added: { learning: number; practice: number; reflection: number };
   practiceDaysThisMonth: number;
   latest: { type: string; title: string; detail: string | null; at: Date } | null;
@@ -99,7 +99,7 @@ export async function platformCards(personId: string, siteClientId: string, now:
   return asPerson(personId, async (c) => {
     const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const r = await c.query(
-      `select c.client_id, cl.name, cl.website, c.scopes, c.email_choice, c.relay_address, c.sub, c.connected_at,
+      `select c.client_id, cl.name, cl.website, cl.approved, c.scopes, c.email_choice, c.relay_address, c.sub, c.connected_at,
               (select count(*) from entries e where e.client_id = c.client_id and e.type = 'learning') as learning,
               (select count(*) from entries e where e.client_id = c.client_id and e.type = 'practice') as practice,
               (select count(*) from entries e where e.client_id = c.client_id and e.type = 'reflection') as reflection,
@@ -115,7 +115,7 @@ export async function platformCards(personId: string, siteClientId: string, now:
     );
     return r.rows.map((x) => ({
       clientId: x.client_id, name: x.name ?? "A platform", website: x.website ?? "", scopes: x.scopes, emailChoice: x.email_choice,
-      relayAddress: x.relay_address, sub: x.sub, connectedAt: x.connected_at,
+      relayAddress: x.relay_address, sub: x.sub, connectedAt: x.connected_at, testMode: x.approved === false,
       added: { learning: Number(x.learning), practice: Number(x.practice), reflection: Number(x.reflection) },
       practiceDaysThisMonth: Number(x.practice_days),
       latest: x.l_title ? { type: x.l_type, title: x.l_title, detail: detailOf(x), at: x.l_at } : null,
@@ -123,7 +123,7 @@ export async function platformCards(personId: string, siteClientId: string, now:
   });
 }
 
-export type EntryLine = { id: string; type: string; title: string; detail: string | null; at: Date };
+export type EntryLine = { id: string; type: string; title: string; detail: string | null; at: Date; test: boolean };
 
 /** One platform's page: its connection and the latest things it added. */
 export async function platformDetail(personId: string, clientId: string) {
@@ -136,7 +136,7 @@ export async function platformDetail(personId: string, clientId: string) {
     )).rows[0];
     if (!conn) return null;
     const entries = await c.query(
-      `select id, type, title, occurred_at, progress_done, progress_of, range_low, range_high, range_of, unit, amount
+      `select id, type, title, occurred_at, progress_done, progress_of, range_low, range_high, range_of, unit, amount, test
          from entries where client_id = $1 order by occurred_at desc limit 20`,
       [clientId],
     );
@@ -145,7 +145,7 @@ export async function platformDetail(personId: string, clientId: string) {
       clientId: conn.client_id as string, name: (conn.name ?? "A platform") as string, website: (conn.website ?? "") as string,
       scopes: conn.scopes as string[], emailChoice: conn.email_choice as "share" | "hide" | null, relayAddress: conn.relay_address as string | null,
       sub: conn.sub as string, connectedAt: conn.connected_at as Date, total: Number(total.rows[0].n),
-      entries: entries.rows.map((x): EntryLine => ({ id: x.id, type: x.type, title: x.title, detail: detailOf(x), at: x.occurred_at })),
+      entries: entries.rows.map((x): EntryLine => ({ id: x.id, type: x.type, title: x.title, detail: detailOf(x), at: x.occurred_at, test: x.test })),
     };
   });
 }
@@ -155,7 +155,7 @@ export async function directory(personId: string, siteClientId: string) {
   return asPerson(personId, async (c) => {
     const r = await c.query<{ client_id: string; name: string; website: string }>(
       `select cl.client_id, cl.name, cl.website from clients cl
-        where cl.client_id <> $1
+        where cl.client_id <> $1 and cl.approved
           and not exists (select 1 from connections c where c.client_id = cl.client_id and c.revoked_at is null)
         order by cl.name`,
       [siteClientId],
@@ -192,7 +192,7 @@ export async function picture(personId: string, siteClientId: string, now: Date 
       `select e.type, e.title, e.occurred_at, e.tz, (e.occurred_at at time zone e.tz)::date::text as day, cl.name, e.client_id,
               e.progress_done, e.progress_of, e.range_low, e.range_high, e.range_of
          from entries e left join clients cl on cl.client_id = e.client_id
-        where e.occurred_at >= $1 order by e.occurred_at`,
+        where e.occurred_at >= $1 and not e.test order by e.occurred_at`,
       [since],
     );
 
@@ -218,7 +218,7 @@ export async function picture(personId: string, siteClientId: string, now: Date 
 
     const allRanges = await c.query<{ title: string; occurred_at: Date; range_low: string; range_high: string; range_of: string; name: string | null }>(
       `select e.title, e.occurred_at, e.range_low, e.range_high, e.range_of, cl.name from entries e left join clients cl on cl.client_id = e.client_id
-        where e.type = 'reflection' order by e.occurred_at`,
+        where e.type = 'reflection' and not e.test order by e.occurred_at`,
     );
     const byTitle = new Map<string, Picture["ranges"][number]>();
     for (const r of allRanges.rows) {
@@ -230,14 +230,14 @@ export async function picture(personId: string, siteClientId: string, now: Date 
 
     const plat = await c.query<{ name: string | null; n: string }>(
       `select cl.name, count(*) as n from entries e left join clients cl on cl.client_id = e.client_id
-        where e.type = 'learning' and e.occurred_at >= $1 group by cl.name order by n desc limit 8`,
+        where e.type = 'learning' and e.occurred_at >= $1 and not e.test group by cl.name order by n desc limit 8`,
       [since],
     );
 
     const middle = await c.query<{ title: string; progress_done: number; progress_of: number; name: string | null }>(
       `select distinct on (e.client_id, e.title) e.title, e.progress_done, e.progress_of, cl.name
          from entries e left join clients cl on cl.client_id = e.client_id
-        where e.progress_of is not null order by e.client_id, e.title, e.occurred_at desc`,
+        where e.progress_of is not null and not e.test order by e.client_id, e.title, e.occurred_at desc`,
     );
 
     const conns = await c.query<{ name: string | null; connected_at: Date }>(

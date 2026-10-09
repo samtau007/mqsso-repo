@@ -1,4 +1,5 @@
 import Provider, { type Configuration, type KoaContextWithOIDC } from "oidc-provider";
+import { maySignIn } from "../clients";
 import { getConnection, subFor } from "../connections";
 import { env } from "../env";
 import { getPerson, realEmail } from "../people";
@@ -59,7 +60,7 @@ function configuration(): Configuration {
     responseTypes: ["code"],
     pkce: { required: () => true },
     subjectTypes: ["pairwise"],
-    extraClientMetadata: { properties: ["mq_sector_group"] },
+    extraClientMetadata: { properties: ["mq_sector_group", "mq_test_mode"] },
     async pairwiseIdentifier(_ctx, accountId, client) {
       return subFor(accountId, client.clientId, sectorGroupOf(client));
     },
@@ -77,7 +78,7 @@ function configuration(): Configuration {
       const accountId = ctx.oidc.session!.accountId;
       if (!accountId) return undefined;
       const conn = await getConnection(accountId, clientId);
-      if (!conn) return undefined;
+      if (!conn || !(await maySignIn(clientId, accountId))) return undefined;
       const grant = new p.Grant({ accountId, clientId });
       grant.addOIDCScope(conn.scopes.join(" "));
       await grant.save();

@@ -59,6 +59,7 @@ label.field{font-size:13px;color:var(--muted)}
 .err{color:var(--err);font-size:14px;margin:0}
 .note{margin:0;font-size:12px;color:var(--muted);text-align:center}
 .status{margin:0;font-size:14px;color:var(--lilac)}
+.test{margin:0;align-self:center;font-size:12px;color:var(--gold);border:1px solid var(--gold);border-radius:999px;padding:4px 12px}
 `;
 
 const LOGO = `<svg width="44" height="44" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="34" fill="none" stroke="#3a4c6b" stroke-width="14"/><path d="M50 16 A34 34 0 0 0 50 84" fill="none" stroke="#8a6ca6" stroke-width="14"/><rect x="44" y="10" width="12" height="12" rx="2.5" fill="#ffffff" transform="rotate(45 50 16)"/></svg>`;
@@ -128,8 +129,9 @@ document.querySelectorAll('[data-passkey]').forEach(function(b){
 })();`;
 }
 
-export function emailStep(o: { uid: string; clientName: string; nonce: string; email?: string; error?: string }): string {
+export function emailStep(o: { uid: string; clientName: string; nonce: string; testMode?: boolean; email?: string; error?: string }): string {
   return layout("Sign in", `
+${o.testMode ? `<p class="test" role="note">Test mode. Only this platform's testers can sign in.</p>` : ""}
 ${logos(o.clientName)}
 <div class="head">
   <h1>Continue to ${esc(o.clientName)} with Muslim Quotient</h1>

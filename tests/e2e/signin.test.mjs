@@ -155,7 +155,7 @@ before(async () => {
   await resetDatabase();
   SECRETS = secrets();
   await startServer();
-  for (const port of [3101, 3102, 3103, 3104, 3105, 3107, 3108]) await startCallbackServer(port);
+  for (const port of [3101, 3102, 3103, 3104, 3105, 3107, 3108, 3109]) await startCallbackServer(port);
   browser = await chromium.launch({ executablePath: CHROMIUM });
   // CLAUDE.md: every screen must work at 360px wide.
   page = await browser.newPage({ viewport: { width: 360, height: 780 } });
@@ -247,7 +247,7 @@ async function startSignIn(config, redirectUri, { pkce = true, scope = "openid e
 
 const subs = {};
 
-test("a platform registers in the portal and cannot sign anyone in before approval", async () => {
+test("a platform registers in the portal and starts in test mode", async () => {
   await portalSignIn(ADMIN);
   const a = await registerPlatform({ name: "Halaqa Notes", website: "https://halaqa.example", redirect: CALLBACK_A, notice: "https://halaqa.example/api/mq/notices" });
   subs.a = a;
@@ -263,8 +263,9 @@ test("a platform registers in the portal and cannot sign anyone in before approv
 
   const s = await startSignIn(config, CALLBACK_A);
   await page.goto(s.url.href);
-  await page.waitForSelector("text=not able to sign people in");
-  await fitsNarrowScreen("id-not-approved");
+  // Not approved yet: the platform is in test mode, and says so.
+  await page.waitForSelector("text=Test mode. Only this platform's testers can sign in.");
+  await fitsNarrowScreen("id-test-mode");
   await s.cleanup();
 });
 
@@ -952,6 +953,70 @@ test("deleting the account removes everything and tells every platform", async (
   await p.goto(`${SITE}/dashboard`);
   await p.waitForURL(/\/authorize|\/interaction\//);
   await context.close();
+});
+
+// Test mode -------------------------------------------------------------------------------------
+
+test("test mode: only testers sign in, test entries stay out of the picture, and going live clears them", async () => {
+  // The admin is still signed in to the portal from the merge test.
+  const t = await registerPlatform({ name: "Trial Platform", website: "https://trial.example", redirect: "http://127.0.0.1:3109/cb", notice: "http://127.0.0.1:3106/api/mq/notices" });
+  await page.goto(`${DEV}/platforms/${t.clientId}`);
+  assert.ok(await page.isVisible(".p-tag:has-text('Test mode')"));
+  await page.fill("#tester", "tester@example.com");
+  await page.click("button:has-text('Add tester')");
+  await page.waitForSelector(".p-row:has-text('tester@example.com')");
+
+  // Details can change while in test mode.
+  await page.fill("#e-description", "A platform under test, changed in the portal.");
+  await page.click("button:has-text('Save changes')");
+  await page.waitForSelector("text=Saved.");
+  await fitsNarrowScreen("portal-test-mode");
+
+  const config = await platform(t.clientId, t.clientSecret);
+  const signUp = async (email) => {
+    const context = await browser.newContext({ viewport: { width: 360, height: 780 } });
+    const p = await context.newPage();
+    const s = await startSignIn(config, "http://127.0.0.1:3109/cb");
+    await p.goto(s.url.href);
+    await p.waitForSelector("text=Test mode.");
+    await p.fill("#email", email);
+    await p.click("text=Send me a code");
+    await p.waitForSelector("#code");
+    await p.fill("#code", await latestCode(email));
+    await p.click("text=Continue");
+    await p.click("button:has-text('Not now')");
+    return { context, p, s };
+  };
+
+  // Someone who is not a tester cannot sign in.
+  const out = await signUp("outsider@example.com");
+  await out.p.waitForSelector("text=This platform is in test mode");
+  await out.context.close();
+
+  // The tester can, and what the platform sends is marked test.
+  const tst = await signUp("tester@example.com");
+  await finishAt(tst.p, tst.s);
+  const tokens = await oidc.authorizationCodeGrant(config, new URL(tst.s.callback()), { pkceCodeVerifier: tst.s.verifier, expectedState: tst.s.state });
+  await tst.s.cleanup();
+  assert.equal((await send("/v1/record", tokens.access_token, learned("trial-1"))).status, 201);
+  assert.equal((await db("select test from entries where key = 'trial-1'"))[0].test, true);
+  await tst.context.close();
+
+  // The developer asks for review with the checklist.
+  await page.goto(`${DEV}/platforms/${t.clientId}`);
+  await page.click("button:has-text('Ask for review')");
+  await page.waitForSelector("text=Tick every item first");
+  for (const box of await page.$$("input[name=check]")) await box.check();
+  await page.click("button:has-text('Ask for review')");
+  await page.waitForSelector("text=Review takes up to 10 working days");
+  const mail = (await readdir(OUTBOX)).length;
+  assert.ok(mail > 0, "the admins are emailed");
+
+  // Going live clears every test sign-in and test entry.
+  await approve(t.clientId);
+  assert.equal((await db("select count(*)::int as n from entries where client_id = $1", [t.clientId]))[0].n, 0);
+  assert.equal((await db("select count(*)::int as n from connections where client_id = $1", [t.clientId]))[0].n, 0);
+  await assert.rejects(oidc.refreshTokenGrant(config, tokens.refresh_token));
 });
 
 test("the daily job is protected and runs", async () => {

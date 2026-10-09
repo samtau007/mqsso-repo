@@ -25,7 +25,7 @@ export default async function PlatformPage({ params }: { params: { id: string } 
         {p.entries.length === 0 && <p className="d-muted">Nothing yet.</p>}
         {p.entries.map((e) => (
           <div className="d-row-line" key={e.id}>
-            <span>{e.title}{e.detail ? (e.type === "reflection" ? <> · <Held label={`${e.title}: ${e.detail}`}>{e.detail}</Held></> : ` · ${e.detail}`) : ""} <small className="d-hint">{PART_LABEL[e.type]}</small></span>
+            <span>{e.title}{e.detail ? (e.type === "reflection" ? <> · <Held label={`${e.title}: ${e.detail}`}>{e.detail}</Held></> : ` · ${e.detail}`) : ""} <small className="d-hint">{PART_LABEL[e.type]}{e.test ? " · test, not in your picture" : ""}</small></span>
             <span>{ago(e.at)}</span>
           </div>
         ))}

@@ -15,7 +15,7 @@ function Card({ p }: { p: PlatformCard }) {
     <a className="d-pcard" href={`/dashboard/platforms/${p.clientId}`}>
       <div className="d-ptop"><Tile name={p.name} /><div style={{ minWidth: 0 }}><b>{p.name}</b><br /><small>{adds(p.scopes)}</small></div></div>
       <span style={{ fontSize: 15 }}>{summary(p)}</span>
-      <small>{p.latest ? `Last added ${ago(p.latest.at)}` : `Connected ${ago(p.connectedAt)}`}</small>
+      <small>{p.testMode ? "In test mode. What it adds stays out of your picture · " : ""}{p.latest ? `Last added ${ago(p.latest.at)}` : `Connected ${ago(p.connectedAt)}`}</small>
     </a>
   );
 }
