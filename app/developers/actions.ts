@@ -7,6 +7,8 @@ import {
   getPlatform, InputError, registerPlatform, rotateSecrets, setApproved, setSectorGroup,
   type ClientType, type Issued, type SendsFrom,
 } from "@/lib/clients";
+import { query } from "@/lib/db";
+import { sendNotice } from "@/lib/notices";
 import { clearFlow, currentDeveloper, endSession, findOrCreateDeveloper, flowId, startSession } from "@/lib/portal";
 
 export type SignInState = { step: "email" | "code"; email?: string; error?: string };
@@ -106,4 +108,23 @@ export async function sector(_prev: SectorState, form: FormData): Promise<Sector
   }
   revalidatePath("/developers/platforms/[id]", "page");
   return { saved: true };
+}
+
+export type TestNoticeState = { result?: string; ok?: boolean };
+
+/** Sends a notice.test to the platform's notice address, so its developer can check the signature. */
+export async function testNotice(_prev: TestNoticeState, form: FormData): Promise<TestNoticeState> {
+  const clientId = String(form.get("client_id"));
+  await mayManage(clientId);
+  const p = await getPlatform(clientId);
+  if (!p?.noticeUri) return { ok: false, result: "This platform has no notice address." };
+  const recent = await query<{ n: string }>(
+    "select count(*) as n from notices where client_id = $1 and event = 'notice.test' and at > now() - interval '1 hour'",
+    [clientId],
+  );
+  if (Number(recent.rows[0].n) >= 10) return { ok: false, result: "Up to 10 test notices an hour. Try again later." };
+  const { result } = await sendNotice({ clientId, event: "notice.test", sub: "mq_test_notice" });
+  revalidatePath("/developers/platforms/[id]", "page");
+  if (result?.ok) return { ok: true, result: `Delivered. Your address answered ${result.status}.` };
+  return { ok: false, result: result?.status ? `Not delivered. Your address answered ${result.status}; it must answer 2xx.` : `Not delivered: ${result?.error ?? "could not connect"}.` };
 }

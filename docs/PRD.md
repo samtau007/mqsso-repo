@@ -307,6 +307,8 @@ Owning sign-in means that when `id.muslimquotient.com` is down, every connected 
 
 About nine weeks of work with Claude Code, scheduled so none of it delays Mohasaba's launch. Each milestone ends with something usable.
 
+**Changed 9 October 2026 (Sami):** the platform is made complete before any app connects. After M2 and the record service, the order is: notices to platforms, the full dashboard (M5), account safety (passkeys, recovery codes, merge, deletion), the email relay and status page (M6), and the developer package with a test mode per platform. istighfar.club, Mohasaba and outside platforms connect after that, each through the developer portal and guide. Platforms send; Muslim Quotient never pulls.
+
 | Milestone | Weeks | Ships | Done when |
 | --- | --- | --- | --- |
 | M0 Decisions | 1 | Postgres project created, domains set up | Decisions 2 to 4 below are made |

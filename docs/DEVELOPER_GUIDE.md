@@ -1,6 +1,6 @@
 # Muslim Quotient Developer Guide
 
-Version 1.3 · 9 October 2026 · draft for early partners. Addresses marked as examples will be confirmed before launch. Changes are listed at the end.
+Version 1.4 · 9 October 2026 · draft for early partners. Addresses marked as examples will be confirmed before launch. Changes are listed at the end.
 
 Add "Sign in with Muslim Quotient" to your platform using standard OpenID Connect, then bring your existing users across without losing their accounts or their history.
 
@@ -222,23 +222,45 @@ You receive only the parts the person allowed: `prayer` with `mq.settings.prayer
 
 ## When a person disconnects or deletes
 
-Muslim Quotient sends signed notices to the address you register. Respond within 30 days.
+Muslim Quotient sends signed notices to the notice address you register. Act on each within 30 days.
 
 | Notice | Means | You must |
 | --- | --- | --- |
 | `connection.revoked` | The person disconnected your platform | Stop sending entries. Keep their account on your side, and offer another way to sign in |
 | `account.deleted` | The person deleted their Muslim Quotient account | Remove the stored `sub`. Delete their data on your side if your own policy promises it |
 | `settings.updated` | Prayer settings or language changed | Fetch `/v1/settings` again |
+| `notice.test` | You pressed "Send a test notice" in the developer portal | Nothing. Answer `200` |
 
-```json
-{
-  "event": "connection.revoked",
-  "sub": "mq_hn_7f3a92c1e8",
-  "at": "2026-10-07T08:12:00Z"
+Each notice is a `POST` with a JSON body:
+
+```http
+POST https://yourplatform.com/api/mq/notices
+Content-Type: application/json
+MQ-Notice-Id: 0b6c2f0e-4c1a-4d0e-9a51-6f1f4e2b7c90
+MQ-Signature: t=1791358400,v1=5f2b9c...e81a
+
+{"id":"0b6c2f0e-4c1a-4d0e-9a51-6f1f4e2b7c90","event":"connection.revoked","sub":"mq_hn_7f3a92c1e8","at":"2026-10-07T08:12:00Z"}
+```
+
+**Check the signature before acting.** `MQ-Signature` holds `t`, the time it was signed in Unix seconds, and `v1`, a hex HMAC-SHA256 of `t`, a full stop, and the raw request body, keyed with your notice signing secret exactly as the portal showed it (it starts `mqn_`). Compute it over the raw body, before any JSON parsing. Refuse a notice whose `t` is more than 5 minutes from your clock, so an old one cannot be replayed.
+
+```js
+import { createHmac, timingSafeEqual } from "node:crypto";
+
+function verifyNotice(rawBody, header, secret) {
+  const parts = Object.fromEntries(header.split(",").map((p) => p.split("=", 2)));
+  const t = Number(parts.t);
+  if (!Number.isInteger(t) || !parts.v1 || Math.abs(Date.now() / 1000 - t) > 300) return false;
+  const expected = Buffer.from(createHmac("sha256", secret).update(`${t}.${rawBody}`).digest("hex"));
+  const given = Buffer.from(parts.v1);
+  return expected.length === given.length && timingSafeEqual(expected, given);
 }
 ```
 
-Check the `MQ-Signature` header with your signing secret before acting on any notice.
+- **Answer `2xx`** once you have the notice. Anything else, or no answer within 10 seconds, counts as not delivered, and the same notice is sent again later with the same `MQ-Notice-Id`, for up to 30 days. Use the id to ignore a notice you already handled.
+- Notices go only to public `https` addresses, and redirects are not followed.
+- The developer portal lists the latest notices to your platform and whether each was delivered. Use "Send a test notice" to check your code before a real one arrives.
+- Rotating your secrets in the portal replaces the notice signing secret too.
 
 ## Rules every platform agrees to
 
@@ -279,6 +301,7 @@ Send the checklist from the developer portal. Review takes up to 10 working days
 
 ## Changes
 
+- **1.4 · 9 October 2026.** Notices are specified: the body, the `MQ-Signature` format with a verification example, the 5-minute window, `MQ-Notice-Id`, retries for 30 days, and `notice.test` from the portal.
 - **1.3 · 9 October 2026.** Connections do not expire: refresh tokens last until used, and the connection until the person disconnects or deletes their account.
 - **1.2 · 9 October 2026.** The record service is live. Added: the import reply (`202`, held until the person approves) and that a second import is refused; the full list of errors; a repeated `key` returns `200`; a range must have `low` below `high`; fields outside an entry's part are refused; entries must come from a server; settings return only allowed parts, with `null` for parts not set.
 - **1.1 · 8 October 2026.** Registration asks how your platform signs in (server, or extension or client without a server); redirect addresses must be on one host; secrets are shown once and can be rotated. The token endpoint accepts the secret in the body or as HTTP Basic. Refresh tokens are described: replaced on every use. The relay service is settled (Postmark).

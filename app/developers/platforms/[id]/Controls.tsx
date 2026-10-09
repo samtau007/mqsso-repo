@@ -1,7 +1,7 @@
 "use client";
 
 import { useFormState, useFormStatus } from "react-dom";
-import { rotate, sector, type RotateState, type SectorState } from "../../actions";
+import { rotate, sector, testNotice, type RotateState, type SectorState, type TestNoticeState } from "../../actions";
 import Secrets from "../../Secrets";
 
 function Submit({ label, busy, line }: { label: string; busy: string; line?: boolean }) {
@@ -37,6 +37,18 @@ export function SectorGroup({ clientId, group }: { clientId: string; group: stri
       {state.error && <p className="p-err" role="alert">{state.error}</p>}
       {state.saved && <p className="p-ok" role="status">Saved.</p>}
       <Submit label="Save group" busy="Saving" line />
+    </form>
+  );
+}
+
+export function TestNotice({ clientId }: { clientId: string }) {
+  const [state, action] = useFormState(testNotice, {} as TestNoticeState);
+  return (
+    <form action={action}>
+      <input type="hidden" name="client_id" value={clientId} />
+      <p className="p-lede" style={{ marginTop: 0 }}>Sends a signed <code>notice.test</code> to your notice address now, so you can check your signature code before a real notice arrives.</p>
+      {state.result && <p className={state.ok ? "p-ok" : "p-err"} role="status">{state.result}</p>}
+      <Submit label="Send a test notice" busy="Sending" line />
     </form>
   );
 }

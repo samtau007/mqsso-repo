@@ -4,6 +4,10 @@ One line per decision, newest first. Claude Code adds a line here whenever Sami 
 
 | Date | Decision | Who |
 | --- | --- | --- |
+| 2026-10-09 | Prayer location: the person can press "Use my location" and allow the browser to share it; only the position rounded to two decimals (about a kilometre) is kept | Sami |
+| 2026-10-09 | Platforms send entries to Muslim Quotient; Muslim Quotient never pulls. The dashboard is live because platforms send as things happen | Sami |
+| 2026-10-09 | Testing for platforms is a test mode per platform in the developer portal, not a separate sandbox environment | Sami |
+| 2026-10-09 | Build order changes: make the whole platform ready (notices, dashboard, account safety, relay, developer package) before connecting istighfar.club, Mohasaba or any other app; then reach out to platforms | Sami |
 | 2026-10-09 | A connection never expires on its own: no yearly reconnecting. It lasts until the person disconnects or deletes their account | Sami |
 | 2026-10-09 | "Hide my email" stays offered for now | Sami |
 | 2026-10-09 | The istighfar.club extension gets Sign in with Muslim Quotient; that work lives in the istighfar-club repository | Sami |
