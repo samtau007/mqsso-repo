@@ -146,7 +146,7 @@ before(async () => {
   await resetDatabase();
   SECRETS = secrets();
   await startServer();
-  for (const port of [3101, 3102, 3103, 3104, 3105]) await startCallbackServer(port);
+  for (const port of [3101, 3102, 3103, 3104, 3105, 3107]) await startCallbackServer(port);
   browser = await chromium.launch({ executablePath: CHROMIUM });
   // CLAUDE.md: every screen must work at 360px wide.
   page = await browser.newPage({ viewport: { width: 360, height: 780 } });
@@ -642,6 +642,167 @@ test("a platform checks a signed test notice from the portal, as the guide says"
   assert.equal(await page.locator("[data-testid=notice-row]").count(), 2);
   assert.ok(await page.isVisible("text=Delivered (200)"));
   await fitsNarrowScreen("portal-notices");
+});
+
+// The full dashboard (M5) ---------------------------------------------------------------------
+
+const CALLBACK_F = "http://127.0.0.1:3107/cb";
+const DASH_SCOPE = "openid email mq.record.learning mq.settings.prayer";
+
+/** Signs the browser's person in to a platform with the given scope, allowing whatever is asked. */
+async function connectWith(p, config, redirect, scope, choice = "hide") {
+  const s = await startSignIn(config, redirect, { scope });
+  await p.goto(s.url.href);
+  await p.waitForTimeout(300);
+  if (!s.callback()) {
+    await p.waitForSelector("button:has-text('Allow')");
+    if (await p.$(`input[value='${choice}']`)) await p.check(`input[value='${choice}']`);
+    await p.click("button:has-text('Allow')");
+    await p.waitForTimeout(300);
+  }
+  const tokens = await oidc.authorizationCodeGrant(config, new URL(s.callback()), { pkceCodeVerifier: s.verifier, expectedState: s.state });
+  await s.cleanup();
+  return tokens;
+}
+
+const lastNotice = (event) => [...received].reverse().find((n) => JSON.parse(n.raw).event === event);
+const learned = (key) => ({ vocabulary_version: 1, type: "learning", action: "lesson.completed", title: "Tajwid, lesson 8", progress: { done: 8, of: 20 }, occurred_at: day(0), tz: "Asia/Kolkata", key });
+
+test("the dashboard: platforms, what each may do, email, prayer settings, goals, picture, export", async () => {
+  const d = await registerPlatform({
+    name: "Dashboard Test", website: "https://dash.example", redirect: CALLBACK_F, notice: "http://127.0.0.1:3106/api/mq/notices",
+    scopes: ["email", "mq.record.learning", "mq.settings.prayer"],
+  });
+  await approve(d.clientId);
+  subs.d = d;
+  const config = await platform(d.clientId, d.clientSecret);
+  const tokens = await connectWith(page, config, CALLBACK_F, DASH_SCOPE, "hide");
+  subs.dTokens = tokens;
+  assert.match(tokens.claims().email, /@relay\.muslimquotient\.com$/);
+  assert.equal((await send("/v1/record", tokens.access_token, learned("dash-1"))).status, 201);
+
+  for (const path of ["/dashboard", "/dashboard/platforms", "/dashboard/picture", "/dashboard/goals", "/dashboard/connect", "/dashboard/prayer", "/dashboard/privacy"]) {
+    await page.goto(`${SITE}${path}`);
+    await page.waitForSelector(".d-title, .d-card");
+    await fitsNarrowScreen(`dash${path.replace(/\//g, "-")}`);
+  }
+
+  // My platforms, then the platform's own page.
+  await page.goto(`${SITE}/dashboard/platforms`);
+  await page.click(".d-pcard:has-text('Dashboard Test')");
+  await page.waitForSelector("text=Tajwid, lesson 8");
+  assert.ok(await page.isVisible(`text=${tokens.claims().sub}`), "shows its private ID");
+  await fitsNarrowScreen("dash-platform");
+
+  // Email: switch to the real one; the platform reads it next time.
+  await page.click("button:has-text('My real email')");
+  await page.waitForSelector("button.on:has-text('My real email')");
+  const info = await oidc.fetchUserInfo(config, tokens.access_token, tokens.claims().sub);
+  assert.equal(info.email, PERSON);
+
+  // Prayer settings: saved once, read by the platform, which is told.
+  const before = received.length;
+  await page.goto(`${SITE}/dashboard/prayer`);
+  await page.fill("#p-city", "Hyderabad");
+  await page.fill("#p-lat", "17.38512");
+  await page.fill("#p-lng", "78.48671");
+  await page.selectOption("#p-method", "Karachi");
+  await page.selectOption("#p-asr", "hanafi");
+  await page.selectOption("#p-tz", "Europe/London");
+  await page.click("button:has-text('Save')");
+  await page.waitForSelector("text=Saved. Your platforms have been told.");
+  const settings = await (await send("/v1/settings", tokens.access_token, null, "GET")).json();
+  assert.deepEqual(settings.prayer, { location: { city: "Hyderabad", lat: 17.39, lng: 78.49 }, method: "Karachi", asr: "hanafi", hijri_adjust: 0 });
+  assert.equal(settings.tz, "Europe/London");
+  assert.ok(received.length > before);
+  const told = lastNotice("settings.updated");
+  assert.equal(JSON.parse(told.raw).sub, tokens.claims().sub);
+  assert.ok(guideVerify(told.raw, told.headers["mq-signature"], d.signingSecret));
+
+  // Take back a permission: the record service refuses at once.
+  await page.goto(`${SITE}/dashboard/platforms/${d.clientId}`);
+  await page.click(".d-row-line:has-text('Add what you learn here') button:has-text('Take back')");
+  await page.waitForSelector("text=Add what you learn here", { state: "detached" });
+  assert.equal((await send("/v1/record", tokens.access_token, learned("dash-2"))).status, 403);
+
+  // Goals open the platform where the work happens.
+  await page.goto(`${SITE}/dashboard/goals`);
+  await page.fill("#g-title", "Memorise Sūrat al-Mulk");
+  await page.selectOption("#g-where", d.clientId);
+  await page.click("button:has-text('Set this goal')");
+  await page.waitForSelector("text=Continue in Dashboard Test");
+  assert.equal(await page.getAttribute("a:has-text('Continue in Dashboard Test')", "href"), "https://dash.example");
+  await page.click("button:has-text('Done')");
+  await page.waitForSelector("text=Bring back");
+  await fitsNarrowScreen("dash-goals-set");
+
+  // Export: everything, as one file.
+  const exp = await page.evaluate(async () => (await fetch("/dashboard/export")).json());
+  assert.equal(exp.email, PERSON);
+  assert.ok(exp.entries.some((e) => e.title === "Tajwid, lesson 8"));
+  assert.ok(exp.goals.some((g) => g.title === "Memorise Sūrat al-Mulk"));
+
+  // My picture shows the learning, and ranges stay hidden until held.
+  await page.goto(`${SITE}/dashboard/picture`);
+  await page.waitForSelector("text=Tajwid, lesson 8");
+  assert.ok(await page.isVisible(".d-held"));
+});
+
+test("disconnecting tells the platform and can remove what it added", async () => {
+  const sub = subs.dTokens.claims().sub;
+  await page.goto(`${SITE}/dashboard/platforms/${subs.d.clientId}`);
+  await page.click("button:has-text('Disconnect and remove what it added')");
+  await page.waitForSelector("text=Disconnected. The platform has been told");
+  const n = lastNotice("connection.revoked");
+  assert.equal(JSON.parse(n.raw).sub, sub);
+  assert.ok(guideVerify(n.raw, n.headers["mq-signature"], subs.d.signingSecret));
+  assert.equal((await db("select count(*)::int as n from entries where client_id = $1", [subs.d.clientId]))[0].n, 0);
+  assert.equal((await send("/v1/settings", subs.dTokens.access_token, null, "GET")).status, 401);
+  await assert.rejects(oidc.refreshTokenGrant(await platform(subs.d.clientId, subs.d.clientSecret), subs.dTokens.refresh_token));
+  assert.equal(await page.isVisible(".d-pcard:has-text('Dashboard Test')"), false);
+});
+
+test("deleting the account removes everything and tells every platform", async () => {
+  const context = await browser.newContext({ viewport: { width: 360, height: 780 } });
+  const p = await context.newPage();
+  // A new person: signs up on Dashboard Test, then on muslimquotient.com.
+  const config = await platform(subs.d.clientId, subs.d.clientSecret);
+  const s = await startSignIn(config, CALLBACK_F, { scope: DASH_SCOPE });
+  await p.goto(s.url.href);
+  await p.fill("#email", "leaver@example.com");
+  await p.click("text=Send me a code");
+  await p.waitForSelector("#code");
+  await p.fill("#code", await latestCode("leaver@example.com"));
+  await p.click("text=Continue");
+  await p.click("button:has-text('Allow')");
+  await p.waitForTimeout(300);
+  const tokens = await oidc.authorizationCodeGrant(config, new URL(s.callback()), { pkceCodeVerifier: s.verifier, expectedState: s.state });
+  await s.cleanup();
+  await p.goto(`${SITE}/signin`);
+  await p.click("button:has-text('Allow')");
+  await p.waitForURL(`${SITE}/dashboard`);
+  const [{ id }] = await db("select person_id as id from connections where sub = $1", [tokens.claims().sub]);
+
+  await p.goto(`${SITE}/dashboard/privacy`);
+  const name = (await p.textContent(".d-namecard h2")).trim();
+  await p.fill("#d-confirm", "not my name");
+  await p.click("button:has-text('Delete everything')");
+  await p.waitForSelector("text=Type your given name exactly");
+  await p.fill("#d-confirm", name);
+  await p.click("button:has-text('Delete everything')");
+  await p.waitForURL(`${SITE}/?deleted=1`);
+
+  for (const table of ["people", "email_vault", "connections", "entries", "given_names", "settings", "goals"]) {
+    const col = table === "people" ? "id" : "person_id";
+    assert.equal((await db(`select count(*)::int as n from ${table} where ${col} = $1`, [id]))[0].n, 0, table);
+  }
+  const n = lastNotice("account.deleted");
+  assert.equal(JSON.parse(n.raw).sub, tokens.claims().sub);
+  assert.ok(guideVerify(n.raw, n.headers["mq-signature"], subs.d.signingSecret));
+  await assert.rejects(oidc.refreshTokenGrant(config, tokens.refresh_token));
+  await p.goto(`${SITE}/dashboard`);
+  await p.waitForURL(/\/authorize|\/interaction\//);
+  await context.close();
 });
 
 test("the daily job is protected and runs", async () => {
