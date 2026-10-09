@@ -4,7 +4,8 @@ import { env } from "@/lib/env";
 import { currentDeveloper } from "@/lib/portal";
 import { approve } from "../../actions";
 import OfficialButton from "./Button";
-import { Rotate, SectorGroup } from "./Controls";
+import { recentNotices } from "@/lib/notices";
+import { Rotate, SectorGroup, TestNotice } from "./Controls";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export default async function PlatformPage({ params }: { params: { id: string } 
   if (!dev) redirect("/");
   const p = await getPlatform(params.id);
   if (!p || (p.ownerId !== dev.id && !dev.isAdmin)) notFound();
+  const notices = p.noticeUri ? await recentNotices(p.clientId) : [];
 
   return (
     <>
@@ -41,6 +43,29 @@ export default async function PlatformPage({ params }: { params: { id: string } 
 
       <h2>Your button</h2>
       <div className="p-card"><OfficialButton /></div>
+
+      {p.noticeUri && (
+        <>
+          <h2>Notices</h2>
+          <div className="p-card">
+            <TestNotice clientId={p.clientId} />
+            {notices.length > 0 && (
+              <table className="p-table" style={{ marginTop: 18 }}>
+                <thead><tr><th>Notice</th><th>Sent</th><th>Result</th></tr></thead>
+                <tbody>
+                  {notices.map((n) => (
+                    <tr key={n.id} data-testid="notice-row">
+                      <td><code>{n.event}</code></td>
+                      <td>{n.at.toISOString().slice(0, 16).replace("T", " ")} UTC</td>
+                      <td>{n.delivered ? `Delivered (${n.status})` : n.gaveUp ? "Stopped trying" : `Retrying, ${n.attempts} ${n.attempts === 1 ? "try" : "tries"}`}{!n.delivered && (n.status ? `, answered ${n.status}` : n.error ? `, ${n.error.toLowerCase()}` : "")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </>
+      )}
 
       {p.clientType === "server" || p.noticeUri ? (
         <>

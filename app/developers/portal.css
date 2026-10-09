@@ -57,3 +57,7 @@ fieldset.p-field{border:0;padding:0;margin-inline:0}
 .p-guide table{border-collapse:collapse;width:100%;display:block;overflow-x:auto;font-size:14px}
 .p-guide th,.p-guide td{border-bottom:1px solid #2c3a52;padding:8px 10px;text-align:left;vertical-align:top}
 .p-foot{border-top:1px solid #2c3a52;padding-block:20px;font-size:13px;color:#9dadc6}
+.p-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+.p-table th{text-align:left;font-weight:500;color:#9dadc6;font-size:12px;padding:0 8px 8px 0}
+.p-table td{border-top:1px solid #2c3a52;padding:10px 8px 10px 0;vertical-align:top;overflow-wrap:anywhere}
+.p-table code{font-size:12px}

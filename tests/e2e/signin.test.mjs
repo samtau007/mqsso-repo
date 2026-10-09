@@ -9,7 +9,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { generateKeyPairSync, randomBytes } from "node:crypto";
+import { createHmac, generateKeyPairSync, randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
@@ -125,6 +125,8 @@ async function startServer(extra = {}) {
       DATABASE_URL: DB,
       MQ_ID_ORIGIN: ID, MQ_DEVELOPERS_ORIGIN: DEV, MQ_API_ORIGIN: API, MQ_SITE_ORIGIN: SITE,
       MQ_MAIL_OUTBOX: OUTBOX, MQ_PORTAL_ADMINS: ADMIN, RESEND_API_KEY: "",
+      // Notices go to the test platforms' servers on this machine.
+      MQ_ALLOW_LOCAL_NOTICES: "1",
       ...extra,
     },
     stdio: ["ignore", "inherit", "inherit"],
@@ -196,6 +198,7 @@ async function registerPlatform({ name, website, redirect, notice, scopes = ["em
   return {
     clientId: await page.textContent("[data-testid=client-id]"),
     clientSecret: await page.textContent("[data-testid=client-secret]"),
+    signingSecret: (await page.$("[data-testid=signing-secret]")) ? await page.textContent("[data-testid=signing-secret]") : null,
   };
 }
 
@@ -584,12 +587,69 @@ test("the record service answers only on its own host", async () => {
   assert.equal((await localFetch(`${API}/dashboard`)).status, 404);
 });
 
+// Notices -------------------------------------------------------------------------------------
+
+/** A platform's notice address: keeps what arrives, and answers with `noticeAnswer`. */
+const received = [];
+let noticeAnswer = 200;
+function startNoticeServer(port) {
+  const srv = http.createServer((req, res) => {
+    let raw = "";
+    req.on("data", (c) => (raw += c));
+    req.on("end", () => {
+      received.push({ method: req.method, headers: req.headers, raw });
+      res.statusCode = noticeAnswer;
+      res.end();
+    });
+  });
+  callbackServers.push(srv);
+  return new Promise((resolve) => srv.listen(port, resolve));
+}
+
+/** Exactly the check the developer guide gives platforms. */
+function guideVerify(rawBody, header, secret) {
+  const parts = Object.fromEntries(header.split(",").map((p) => p.split("=", 2)));
+  const t = Number(parts.t);
+  if (!Number.isInteger(t) || !parts.v1 || Math.abs(Date.now() / 1000 - t) > 300) return false;
+  const expected = Buffer.from(createHmac("sha256", secret).update(`${t}.${rawBody}`).digest("hex"));
+  const given = Buffer.from(parts.v1);
+  return expected.length === given.length && timingSafeEqual(expected, given);
+}
+
+test("a platform checks a signed test notice from the portal, as the guide says", async () => {
+  await startNoticeServer(3106);
+  const n = await registerPlatform({ name: "Notice Test", website: "https://notice.example", redirect: "http://127.0.0.1:3107/cb", notice: "http://127.0.0.1:3106/api/mq/notices" });
+  assert.match(n.signingSecret, /^mqn_/);
+
+  await page.goto(`${DEV}/platforms/${n.clientId}`);
+  await page.click("text=Send a test notice");
+  await page.waitForSelector("text=Delivered. Your address answered 200.");
+  const got = received.at(-1);
+  assert.equal(got.method, "POST");
+  assert.equal(got.headers["content-type"], "application/json");
+  assert.ok(guideVerify(got.raw, got.headers["mq-signature"], n.signingSecret), "signature checks out");
+  assert.equal(guideVerify(got.raw, got.headers["mq-signature"], "mqn_wrong"), false);
+  const body = JSON.parse(got.raw);
+  assert.equal(body.event, "notice.test");
+  assert.equal(body.id, got.headers["mq-notice-id"]);
+  assert.match(body.at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+
+  noticeAnswer = 500;
+  await page.click("text=Send a test notice");
+  await page.waitForSelector("text=Not delivered. Your address answered 500; it must answer 2xx.");
+  noticeAnswer = 200;
+  await page.reload();
+  assert.equal(await page.locator("[data-testid=notice-row]").count(), 2);
+  assert.ok(await page.isVisible("text=Delivered (200)"));
+  await fitsNarrowScreen("portal-notices");
+});
+
 test("the daily job is protected and runs", async () => {
   const no = await localFetch(`http://localhost:${PORT}/api/cron/daily`);
   assert.equal(no.status, 401);
   const yes = await localFetch(`http://localhost:${PORT}/api/cron/daily`, { headers: { authorization: "Bearer test-cron" } });
   assert.equal(yes.status, 200);
-  assert.deepEqual(Object.keys(await yes.json()).sort(), ["renamed", "swept"]);
+  assert.deepEqual(Object.keys(await yes.json()).sort(), ["notices", "renamed", "swept"]);
 });
 
 test("the website does not answer for the sign-in service or the portal", async () => {
