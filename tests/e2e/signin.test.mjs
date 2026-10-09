@@ -704,8 +704,12 @@ test("the dashboard: platforms, what each may do, email, prayer settings, goals,
   const before = received.length;
   await page.goto(`${SITE}/dashboard/prayer`);
   await page.fill("#p-city", "Hyderabad");
-  await page.fill("#p-lat", "17.38512");
-  await page.fill("#p-lng", "78.48671");
+  // The person lets the browser share where they are; only the rounded position is kept.
+  await page.context().grantPermissions(["geolocation"], { origin: SITE });
+  await page.context().setGeolocation({ latitude: 17.38512, longitude: 78.48671 });
+  await page.click("button:has-text('Use my location')");
+  await page.waitForSelector("text=Location found");
+  assert.equal(await page.inputValue("#p-lat"), "17.39");
   await page.selectOption("#p-method", "Karachi");
   await page.selectOption("#p-asr", "hanafi");
   await page.selectOption("#p-tz", "Europe/London");

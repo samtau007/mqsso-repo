@@ -50,6 +50,24 @@ export function PrayerForm({ initial, methods, asr, languages }: { initial: Sett
   const [state, action] = useFormState(prayer, {} as FormState);
   const [zones, setZones] = useState<string[]>([]);
   const [tz, setTz] = useState(initial.tz);
+  const [lat, setLat] = useState(initial.lat);
+  const [lng, setLng] = useState(initial.lng);
+  const [where, setWhere] = useState<string | null>(null);
+
+  /** Asks the browser once; only the rounded position is kept, and only when the person saves. */
+  const locate = () => {
+    if (!navigator.geolocation) return setWhere("This browser cannot share a location. Type it instead.");
+    setWhere("Asking your browser…");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLat(pos.coords.latitude.toFixed(2));
+        setLng(pos.coords.longitude.toFixed(2));
+        setWhere("Location found, to about a kilometre. Save to keep it.");
+      },
+      () => setWhere("No location was shared. You can type it instead."),
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 600000 },
+    );
+  };
   useEffect(() => {
     setZones((Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf?.("timeZone") ?? []);
     if (!initial.tz) setTz(Intl.DateTimeFormat().resolvedOptions().timeZone);
@@ -60,8 +78,12 @@ export function PrayerForm({ initial, methods, asr, languages }: { initial: Sett
       <div className="d-form two">
         <div className="d-field"><label htmlFor="p-city">City</label><input className="d-input" id="p-city" name="city" defaultValue={initial.city} maxLength={80} placeholder="Hyderabad" /></div>
         <div className="d-form two" style={{ gap: 10 }}>
-          <div className="d-field"><label htmlFor="p-lat">Latitude, if you know it</label><input className="d-input" id="p-lat" name="lat" inputMode="decimal" defaultValue={initial.lat} placeholder="17.38" /></div>
-          <div className="d-field"><label htmlFor="p-lng">Longitude</label><input className="d-input" id="p-lng" name="lng" inputMode="decimal" defaultValue={initial.lng} placeholder="78.48" /></div>
+          <div className="d-field"><label htmlFor="p-lat">Latitude</label><input className="d-input" id="p-lat" name="lat" inputMode="decimal" value={lat} onChange={(e) => setLat(e.target.value)} placeholder="17.38" /></div>
+          <div className="d-field"><label htmlFor="p-lng">Longitude</label><input className="d-input" id="p-lng" name="lng" inputMode="decimal" value={lng} onChange={(e) => setLng(e.target.value)} placeholder="78.48" /></div>
+        </div>
+        <div className="d-field" style={{ justifyContent: "flex-end" }}>
+          <button className="d-btn line" type="button" onClick={locate}>Use my location</button>
+          {where && <p className="d-hint" role="status" style={{ margin: 0 }}>{where}</p>}
         </div>
         <div className="d-field"><label htmlFor="p-method">Calculation method</label>
           <select className="d-input" id="p-method" name="method" defaultValue={initial.method}>
