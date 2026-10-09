@@ -16,7 +16,7 @@ One Next.js deployment answers for several hosts. `middleware.ts` routes by host
 | `id.muslimquotient.com` | Sign-in service: node-oidc-provider, email code, permission screen, given names | `pages/api/id`, `lib/oidc` |
 | `developers.muslimquotient.com` | Developer portal: register a platform, keys, approval | `app/developers` |
 | `www.muslimquotient.com` | Website and dashboard; signs in through `id.` as an ordinary platform | `app/`, `lib/site` |
-| `api.muslimquotient.com` | Record service (from M3) | not built yet |
+| `api.muslimquotient.com` | Record service: `/v1/record`, `/v1/record/import`, `/v1/settings` | `app/api/v1`, `lib/record.ts`, `lib/vocabulary.ts` |
 
 Postgres holds everything (`supabase/migrations`). Supabase is used only as the database: no Supabase Auth, no Data API.
 
@@ -71,7 +71,7 @@ Add these domains to the Vercel project. Vercel shows the exact DNS record for e
 | `www.muslimquotient.com` | Added |
 | `id.muslimquotient.com` | `CNAME` |
 | `developers.muslimquotient.com` | `CNAME` |
-| `api.muslimquotient.com` | `CNAME` (used from M3) |
+| `api.muslimquotient.com` | `CNAME` |
 
 ### Email
 

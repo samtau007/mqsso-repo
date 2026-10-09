@@ -24,6 +24,7 @@ export const env = {
   /** Public addresses. The issuer is the sign-in service's own address. */
   get idOrigin() { return origin("MQ_ID_ORIGIN", "https://id.muslimquotient.com"); },
   get siteOrigin() { return origin("MQ_SITE_ORIGIN", "https://muslimquotient.com"); },
+  get apiOrigin() { return origin("MQ_API_ORIGIN", "https://api.muslimquotient.com"); },
   get developersOrigin() { return origin("MQ_DEVELOPERS_ORIGIN", "https://developers.muslimquotient.com"); },
   get relayDomain() { return process.env.MQ_RELAY_DOMAIN || "relay.muslimquotient.com"; },
 
