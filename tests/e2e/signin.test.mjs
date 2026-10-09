@@ -314,6 +314,13 @@ test("a new person signs up with an email code, gets a given name, hides their e
   // Refresh tokens are replaced on every use, and the old one stops working.
   const next = await oidc.refreshTokenGrant(config, tokens.refresh_token);
   assert.ok(next.refresh_token && next.refresh_token !== tokens.refresh_token);
+
+  // A connection lasts until the person disconnects: neither the grant nor the refresh token expires.
+  const lasting = await db("select type, expires_at from oidc_payloads where type in ('Grant', 'RefreshToken') and consumed_at is null");
+  assert.ok(lasting.some((r) => r.type === "Grant") && lasting.some((r) => r.type === "RefreshToken"));
+  for (const r of lasting) assert.equal(r.expires_at, null, `${r.type} has no expiry`);
+
+  // Using an old refresh token again ends the connection.
   await assert.rejects(oidc.refreshTokenGrant(config, tokens.refresh_token));
   await s.cleanup();
 

@@ -1,6 +1,6 @@
 # Muslim Quotient Developer Guide
 
-Version 1.2 · 9 October 2026 · draft for early partners. Addresses marked as examples will be confirmed before launch. Changes are listed at the end.
+Version 1.3 · 9 October 2026 · draft for early partners. Addresses marked as examples will be confirmed before launch. Changes are listed at the end.
 
 Add "Sign in with Muslim Quotient" to your platform using standard OpenID Connect, then bring your existing users across without losing their accounts or their history.
 
@@ -51,7 +51,7 @@ You may send the secret in the body, as above, or as HTTP Basic authentication; 
 
 5. **Read the person's ID** from the `sub` value in the ID token. Store it against your user. That is the only identifier you will ever receive for this person.
 
-   The token response also carries a `refresh_token`. Every time you use it you receive a new one, and the one you used stops working, so always keep the newest. Access tokens last one hour.
+   The token response also carries a `refresh_token`. Every time you use it you receive a new one, and the one you used stops working, so always keep the newest. Access tokens last one hour. Refresh tokens do not expire with time: a connection lasts until the person disconnects or deletes their account, so the person never has to connect again. Using a refresh token that was already used ends the connection, as a safeguard.
 
 ```json
 {
@@ -279,6 +279,7 @@ Send the checklist from the developer portal. Review takes up to 10 working days
 
 ## Changes
 
+- **1.3 · 9 October 2026.** Connections do not expire: refresh tokens last until used, and the connection until the person disconnects or deletes their account.
 - **1.2 · 9 October 2026.** The record service is live. Added: the import reply (`202`, held until the person approves) and that a second import is refused; the full list of errors; a repeated `key` returns `200`; a range must have `low` below `high`; fields outside an entry's part are refused; entries must come from a server; settings return only allowed parts, with `null` for parts not set.
 - **1.1 · 8 October 2026.** Registration asks how your platform signs in (server, or extension or client without a server); redirect addresses must be on one host; secrets are shown once and can be rotated. The token endpoint accepts the secret in the body or as HTTP Basic. Refresh tokens are described: replaced on every use. The relay service is settled (Postmark).
 - **1 · 8 October 2026.** First draft.
