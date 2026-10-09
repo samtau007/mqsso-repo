@@ -61,3 +61,6 @@ fieldset.p-field{border:0;padding:0;margin-inline:0}
 .p-table th{text-align:left;font-weight:500;color:#9dadc6;font-size:12px;padding:0 8px 8px 0}
 .p-table td{border-top:1px solid #2c3a52;padding:10px 8px 10px 0;vertical-align:top;overflow-wrap:anywhere}
 .p-table code{font-size:12px}
+.p-row{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 0;border-top:1px solid #2c3a52;font-size:14px;flex-wrap:wrap}
+.p-row span{overflow-wrap:anywhere}
+.p-linkbtn{background:none;border:0;color:#c9b6dc;font:inherit;font-size:14px;cursor:pointer;text-decoration:underline;padding:0}

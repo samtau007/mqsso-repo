@@ -4,8 +4,12 @@ import { getPerson } from "@/lib/people";
 import { namesOf, platformCards } from "@/lib/dashboard";
 import { siteClient } from "@/lib/site/oidc";
 import { currentPersonId } from "@/lib/site/session";
-import { emailChoice } from "../actions";
+import { query } from "@/lib/db";
+import { recoveryLeft } from "@/lib/recovery";
+import { emailChoice, removeKey } from "../actions";
 import { DeleteForm } from "../Forms";
+import { ago } from "../parts";
+import { AddPasskey, RecoveryCodes } from "../Safety";
 
 /** Privacy, as in docs/design/Privacy.html: the given name, email per platform, relays, export, delete. */
 export default async function Privacy() {
@@ -13,6 +17,11 @@ export default async function Privacy() {
   if (!personId) redirect("/signin");
   const [person, names, platforms] = await Promise.all([getPerson(personId), namesOf(personId), platformCards(personId, siteClient().clientId)]);
   if (!person) redirect("/signin");
+  const passkeys = (await query<{ id: string; name: string; created_at: Date; last_used_at: Date | null }>(
+    "select id, name, created_at, last_used_at from passkeys where person_id = $1 order by created_at",
+    [personId],
+  )).rows;
+  const codesLeft = await recoveryLeft(personId);
   const days = Math.min(NAME_DAYS, Math.max(0, Math.ceil((person.nameChangesOn.getTime() - Date.now()) / 86_400_000)));
   const withEmail = platforms.filter((p) => p.scopes.includes("email"));
   const relays = withEmail.filter((p) => p.relayAddress);
@@ -59,6 +68,26 @@ export default async function Privacy() {
         <div className="d-row-line"><span>Ranges hidden until you press and hold</span><span>On</span></div>
         <div className="d-row-line"><span>Your record blurs when you leave the tab</span><span>On</span></div>
         <div className="d-row-line"><span>Sharing</span><span>There is no share button and no public profile</span></div>
+      </section>
+
+      <section className="d-card" aria-labelledby="signing">
+        <span className="d-label" id="signing">Signing in</span>
+        <p className="d-muted">Passkeys sign you in with your fingerprint, face or screen lock, on any platform&apos;s Muslim Quotient page. Recovery codes get you in if you lose the mailbox you signed up with.</p>
+        {passkeys.map((k) => (
+          <form action={removeKey} className="d-row-line" key={k.id} style={{ alignItems: "center" }}>
+            <input type="hidden" name="passkey" value={k.id} />
+            <span style={{ color: "#fff" }}>{k.name} <small className="d-hint">added {ago(k.created_at)}{k.last_used_at ? `, last used ${ago(k.last_used_at)}` : ""}</small></span>
+            <button className="d-link" type="submit">Remove</button>
+          </form>
+        ))}
+        <AddPasskey />
+        <div style={{ borderTop: "1px solid #2c3a52", paddingTop: 14 }}><RecoveryCodes left={codesLeft} /></div>
+      </section>
+
+      <section className="d-card" aria-labelledby="merge">
+        <span className="d-label" id="merge">Two accounts?</span>
+        <p className="d-muted">If you made a second Muslim Quotient account with another email, merge it into this one.</p>
+        <div><a className="d-btn line" href="/dashboard/merge">Merge another account</a></div>
       </section>
 
       <section className="d-card" aria-labelledby="export">

@@ -4,9 +4,11 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { codeErrorMessage, issueCode, pendingEmail, verifyCode } from "@/lib/codes";
 import {
-  getPlatform, InputError, registerPlatform, rotateSecrets, setApproved, setSectorGroup,
-  type ClientType, type Issued, type SendsFrom,
+  addTester, CHECKLIST, getPlatform, InputError, registerPlatform, removeTester, requestReview, rotateSecrets, setApproved, setSectorGroup,
+  updatePlatform, type ClientType, type Issued, type SendsFrom,
 } from "@/lib/clients";
+import { env } from "@/lib/env";
+import { sendMail } from "@/lib/mail";
 import { query } from "@/lib/db";
 import { sendNotice } from "@/lib/notices";
 import { clearFlow, currentDeveloper, endSession, findOrCreateDeveloper, flowId, startSession } from "@/lib/portal";
@@ -127,4 +129,67 @@ export async function testNotice(_prev: TestNoticeState, form: FormData): Promis
   revalidatePath("/developers/platforms/[id]", "page");
   if (result?.ok) return { ok: true, result: `Delivered. Your address answered ${result.status}.` };
   return { ok: false, result: result?.status ? `Not delivered. Your address answered ${result.status}; it must answer 2xx.` : `Not delivered: ${result?.error ?? "could not connect"}.` };
+}
+
+// Test mode, review and editing ------------------------------------------------------------------
+
+export type SimpleState = { error?: string; done?: boolean; signingSecret?: string | null };
+
+export async function tester(_prev: SimpleState, form: FormData): Promise<SimpleState> {
+  const clientId = String(form.get("client_id"));
+  const dev = await mayManage(clientId);
+  try {
+    await addTester(clientId, String(form.get("email") ?? "").trim(), `developer:${dev.id}`);
+  } catch (e) {
+    if (e instanceof InputError) return { error: e.problems.join(" ") };
+    throw e;
+  }
+  revalidatePath("/developers/platforms/[id]", "page");
+  return { done: true };
+}
+
+export async function untester(form: FormData) {
+  const clientId = String(form.get("client_id"));
+  const dev = await mayManage(clientId);
+  await removeTester(clientId, String(form.get("email") ?? ""), `developer:${dev.id}`);
+  revalidatePath("/developers/platforms/[id]", "page");
+}
+
+
+export async function askReview(_prev: SimpleState, form: FormData): Promise<SimpleState> {
+  const clientId = String(form.get("client_id"));
+  const dev = await mayManage(clientId);
+  const ticked = form.getAll("check").map(String);
+  if (CHECKLIST.some((_, i) => !ticked.includes(String(i)))) return { error: "Tick every item first. Each one is checked in review." };
+  const p = await getPlatform(clientId);
+  await requestReview(clientId, `developer:${dev.id}`);
+  for (const to of env.portalAdmins) {
+    await sendMail({
+      to,
+      subject: `${p?.name ?? "A platform"} asks for review`,
+      text: `${p?.name} (${p?.website}) has ticked the go-live checklist and asks to be approved.\n\n${env.developersOrigin}/platforms/${clientId}\n\nMuslim Quotient developer portal`,
+    }).catch(() => undefined);
+  }
+  revalidatePath("/developers/platforms/[id]", "page");
+  return { done: true };
+}
+
+export async function edit(_prev: SimpleState, form: FormData): Promise<SimpleState> {
+  const clientId = String(form.get("client_id"));
+  const dev = await mayManage(clientId);
+  try {
+    const r = await updatePlatform(clientId, {
+      name: String(form.get("name") ?? ""),
+      website: String(form.get("website") ?? ""),
+      description: String(form.get("description") ?? ""),
+      redirectUris: String(form.get("redirect_uris") ?? "").split(/\s+/),
+      noticeUri: String(form.get("notice_uri") ?? ""),
+      scopes: ["openid", ...form.getAll("scope").map(String)],
+    }, `developer:${dev.id}`);
+    revalidatePath("/developers/platforms/[id]", "page");
+    return { done: true, signingSecret: r.signingSecret };
+  } catch (e) {
+    if (e instanceof InputError) return { error: e.problems.join(" ") };
+    throw e;
+  }
 }

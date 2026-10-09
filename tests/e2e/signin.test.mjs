@@ -21,10 +21,12 @@ import { migrate } from "../../scripts/migrate.mjs";
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", "..");
 const PORT = 3100;
 const DB = process.env.TEST_DATABASE_URL || "postgres://mq:mq@127.0.0.1/mq_test";
-const ID = `http://id.localhost:${PORT}`;
-const DEV = `http://developers.localhost:${PORT}`;
-const API = `http://api.localhost:${PORT}`;
-const SITE = `http://localhost:${PORT}`;
+const ID = `http://id.mq.localhost:${PORT}`;
+const DEV = `http://developers.mq.localhost:${PORT}`;
+const API = `http://api.mq.localhost:${PORT}`;
+// The hosts mirror production (www., id., developers., api. under one domain) so passkeys made
+// on the dashboard work on the sign-in pages: Chrome will not share a passkey across *.localhost.
+const SITE = `http://www.mq.localhost:${PORT}`;
 const OUTBOX = path.join(ROOT, ".mq-test", "outbox");
 const ADMIN = "admin@example.com";
 const PERSON = "person@example.com";
@@ -127,16 +129,23 @@ async function startServer(extra = {}) {
       MQ_MAIL_OUTBOX: OUTBOX, MQ_PORTAL_ADMINS: ADMIN, RESEND_API_KEY: "",
       // Notices go to the test platforms' servers on this machine.
       MQ_ALLOW_LOCAL_NOTICES: "1",
+      // Passkeys: one relying party for every test host, as muslimquotient.com is in production.
+      MQ_RP_ID: "mq.localhost",
       ...extra,
     },
     stdio: ["ignore", "inherit", "inherit"],
   });
+  server.on("exit", (code, signal) => console.log(`server exited: ${code ?? signal}`));
   await waitForServer();
 }
 
 async function restartServer(extra) {
-  process.kill(-server.pid, "SIGTERM");
-  await new Promise((r) => server.once("exit", r));
+  // Waits only if it is still running: an "exit" that already happened would never come again.
+  if (server.exitCode === null && server.signalCode === null) {
+    const exited = new Promise((r) => server.once("exit", r));
+    process.kill(-server.pid, "SIGTERM");
+    await exited;
+  }
   await startServer(extra);
 }
 
@@ -146,7 +155,7 @@ before(async () => {
   await resetDatabase();
   SECRETS = secrets();
   await startServer();
-  for (const port of [3101, 3102, 3103, 3104, 3105, 3107]) await startCallbackServer(port);
+  for (const port of [3101, 3102, 3103, 3104, 3105, 3107, 3108, 3109]) await startCallbackServer(port);
   browser = await chromium.launch({ executablePath: CHROMIUM });
   // CLAUDE.md: every screen must work at 360px wide.
   page = await browser.newPage({ viewport: { width: 360, height: 780 } });
@@ -238,7 +247,7 @@ async function startSignIn(config, redirectUri, { pkce = true, scope = "openid e
 
 const subs = {};
 
-test("a platform registers in the portal and cannot sign anyone in before approval", async () => {
+test("a platform registers in the portal and starts in test mode", async () => {
   await portalSignIn(ADMIN);
   const a = await registerPlatform({ name: "Halaqa Notes", website: "https://halaqa.example", redirect: CALLBACK_A, notice: "https://halaqa.example/api/mq/notices" });
   subs.a = a;
@@ -254,8 +263,9 @@ test("a platform registers in the portal and cannot sign anyone in before approv
 
   const s = await startSignIn(config, CALLBACK_A);
   await page.goto(s.url.href);
-  await page.waitForSelector("text=not able to sign people in");
-  await fitsNarrowScreen("id-not-approved");
+  // Not approved yet: the platform is in test mode, and says so.
+  await page.waitForSelector("text=Test mode. Only this platform's testers can sign in.");
+  await fitsNarrowScreen("id-test-mode");
   await s.cleanup();
 });
 
@@ -285,6 +295,11 @@ test("a new person signs up with an email code, gets a given name, hides their e
   await page.waitForSelector("text=That code did not match");
   await page.fill("#code", await latestCode(PERSON));
   await page.click("text=Continue");
+
+  // After the first code, a passkey is offered once. Not now carries on.
+  await page.waitForSelector("text=Sign in faster next time");
+  await fitsNarrowScreen("id-passkey-offer");
+  await page.click("button:has-text('Not now')");
 
   await page.waitForSelector("text=Your given name is", { timeout: 5000 }).catch(async (e) => {
     console.log(page.url(), (await page.content()).replace(/<style>[\s\S]*?<\/style>/, "").slice(0, 3000));
@@ -421,6 +436,7 @@ test("a newcomer creates their ID from the home page and lands on their dashboar
   await fresh.waitForSelector("#code");
   await fresh.fill("#code", await latestCode("newcomer@example.com"));
   await fresh.click("text=Continue");
+  await fresh.click("button:has-text('Not now')");
   await fresh.waitForSelector("text=Your given name is");
   const givenName = await fresh.textContent(".given");
   await fresh.click("button:has-text('Allow')");
@@ -668,6 +684,135 @@ async function connectWith(p, config, redirect, scope, choice = "hide") {
 const lastNotice = (event) => [...received].reverse().find((n) => JSON.parse(n.raw).event === event);
 const learned = (key) => ({ vocabulary_version: 1, type: "learning", action: "lesson.completed", title: "Tajwid, lesson 8", progress: { done: 8, of: 20 }, occurred_at: day(0), tz: "Asia/Kolkata", key });
 
+// Account safety --------------------------------------------------------------------------------
+
+/** Waits for the platform's callback, allowing on the permission screen if it is shown. */
+async function finishAt(p, s) {
+  for (let i = 0; i < 30 && !s.callback(); i++) {
+    if (await p.$("button:has-text('Allow')")) {
+      await p.click("button:has-text('Allow')");
+    }
+    await p.waitForTimeout(200);
+  }
+  if (!s.callback()) console.log("STUCK AT", p.url(), await p.evaluate(() => document.body.innerText.slice(0, 600)));
+  assert.ok(s.callback(), "reached the platform");
+}
+
+test("a passkey and recovery codes sign the person in without an email code", async () => {
+  // Chromium's virtual authenticator stands in for a phone or laptop.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("WebAuthn.enable");
+  await cdp.send("WebAuthn.addVirtualAuthenticator", {
+    options: { protocol: "ctap2", transport: "internal", hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true },
+  });
+
+  await page.goto(`${SITE}/dashboard/privacy`);
+  await page.click("button:has-text('Add a passkey')");
+  await page.waitForSelector("text=Passkey added.");
+  await page.reload();
+  assert.ok(await page.isVisible("text=Linux passkey"));
+  await page.click("button:has-text('Make recovery codes')");
+  await page.waitForSelector("[data-testid=recovery-codes]");
+  const codes = (await page.$$eval("[data-testid=recovery-codes] code", (els) => els.map((e) => e.textContent)));
+  assert.equal(codes.length, 10);
+  assert.match(codes[0], /^[A-Z2-9]{5}-[A-Z2-9]{5}$/);
+  await fitsNarrowScreen("dash-recovery");
+  assert.equal((await db("select count(*)::int as n from recovery_codes where code_hash = $1", [codes[0]]))[0].n, 0, "only hashes are stored");
+
+  // Signed out of Muslim Quotient everywhere on this browser; back in with the passkey.
+  const config = await platform(subs.a.clientId, subs.a.clientSecret);
+  await page.context().clearCookies();
+  let s = await startSignIn(config, CALLBACK_A);
+  await page.goto(s.url.href);
+  await page.click("button:has-text('Sign in with a passkey')");
+  await finishAt(page, s);
+  let tokens = await oidc.authorizationCodeGrant(config, new URL(s.callback()), { pkceCodeVerifier: s.verifier, expectedState: s.state });
+  assert.equal(tokens.claims().sub, subs.subA, "the same person, by passkey");
+  await s.cleanup();
+
+  // Lost the mailbox: a recovery code, once.
+  await page.context().clearCookies();
+  s = await startSignIn(config, CALLBACK_A);
+  await page.goto(s.url.href);
+  await page.click("text=Cannot get to your email? Use a recovery code");
+  await fitsNarrowScreen("id-recover");
+  await page.fill("#email", PERSON);
+  await page.fill("#recovery", codes[0].toLowerCase());
+  await page.click("button:has-text('Sign in')");
+  await finishAt(page, s);
+  tokens = await oidc.authorizationCodeGrant(config, new URL(s.callback()), { pkceCodeVerifier: s.verifier, expectedState: s.state });
+  assert.equal(tokens.claims().sub, subs.subA, "the same person, by recovery code");
+  await s.cleanup();
+
+  await page.context().clearCookies();
+  s = await startSignIn(config, CALLBACK_A);
+  await page.goto(s.url.href);
+  await page.click("text=Cannot get to your email? Use a recovery code");
+  await page.fill("#email", PERSON);
+  await page.fill("#recovery", codes[0]);
+  await page.click("button:has-text('Sign in')");
+  await page.waitForSelector("text=That email and code do not match.");
+  await s.cleanup();
+
+  // Back on muslimquotient.com for the tests that follow, by passkey.
+  await page.goto(`${SITE}/signin`);
+  await page.click("button:has-text('Sign in with a passkey')");
+  await page.waitForURL(`${SITE}/dashboard`, { timeout: 8000 }).catch(async (e) => {
+    console.log("SITE STUCK", page.url(), await page.evaluate(() => document.body.innerText.slice(0, 500)));
+    throw e;
+  });
+});
+
+test("merging a second account brings its platforms, entries and sign-ins across", async () => {
+  await portalSignIn(ADMIN); // the cookies were cleared above
+  const m = await registerPlatform({ name: "Merge Test", website: "https://merge.example", redirect: "http://127.0.0.1:3108/cb", notice: "http://127.0.0.1:3106/api/mq/notices" });
+  await approve(m.clientId);
+  const config = await platform(m.clientId, m.clientSecret);
+
+  // The same person made a second account, with another email, on Merge Test.
+  const context = await browser.newContext({ viewport: { width: 360, height: 780 } });
+  const p2 = await context.newPage();
+  const s = await startSignIn(config, "http://127.0.0.1:3108/cb");
+  await p2.goto(s.url.href);
+  await p2.fill("#email", "second@example.com");
+  await p2.click("text=Send me a code");
+  await p2.waitForSelector("#code");
+  await p2.fill("#code", await latestCode("second@example.com"));
+  await p2.click("text=Continue");
+  await p2.click("button:has-text('Not now')");
+  await p2.click("button:has-text('Allow')");
+  await finishAt(p2, s);
+  const second = await oidc.authorizationCodeGrant(config, new URL(s.callback()), { pkceCodeVerifier: s.verifier, expectedState: s.state });
+  await s.cleanup();
+  await context.close();
+  assert.equal((await send("/v1/record", second.access_token, learned("merge-1"))).status, 201);
+  const [{ id: secondId }] = await db("select person_id as id from connections where sub = $1", [second.claims().sub]);
+  const [{ id: mainId }] = await db("select person_id as id from connections where sub = $1", [subs.subA]);
+
+  // The main account merges it in, proving the other email with a code.
+  await page.goto(`${SITE}/dashboard/merge`);
+  await page.fill("#m-email", "second@example.com");
+  await page.click("button:has-text('Send a code')");
+  await page.waitForSelector("#m-code");
+  await page.fill("#m-code", await latestCode("second@example.com"));
+  await page.click("button:has-text('Continue')");
+  await page.waitForSelector("text=Merge into this account");
+  await fitsNarrowScreen("dash-merge");
+  await page.click("button:has-text('Merge and delete the other account')");
+  await page.waitForURL(`${SITE}/dashboard?merged=1`);
+
+  assert.equal((await db("select count(*)::int as n from people where id = $1", [secondId]))[0].n, 0, "the other account is gone");
+  const [conn] = await db("select person_id, sub from connections where client_id = $1", [m.clientId]);
+  assert.deepEqual(conn, { person_id: mainId, sub: second.claims().sub }, "the platform keeps the private ID it knows");
+  assert.equal((await db("select person_id from entries where key = 'merge-1'"))[0].person_id, mainId);
+
+  // Merge Test's sign-in carries on, for the account that stayed.
+  const next = await oidc.refreshTokenGrant(config, second.refresh_token);
+  assert.equal(next.claims().sub, second.claims().sub);
+  assert.equal((await send("/v1/record", next.access_token, learned("merge-2"))).status, 201);
+  assert.equal((await db("select person_id from entries where key = 'merge-2'"))[0].person_id, mainId);
+});
+
 test("the dashboard: platforms, what each may do, email, prayer settings, goals, picture, export", async () => {
   const d = await registerPlatform({
     name: "Dashboard Test", website: "https://dash.example", redirect: CALLBACK_F, notice: "http://127.0.0.1:3106/api/mq/notices",
@@ -778,6 +923,7 @@ test("deleting the account removes everything and tells every platform", async (
   await p.waitForSelector("#code");
   await p.fill("#code", await latestCode("leaver@example.com"));
   await p.click("text=Continue");
+  await p.click("button:has-text('Not now')");
   await p.click("button:has-text('Allow')");
   await p.waitForTimeout(300);
   const tokens = await oidc.authorizationCodeGrant(config, new URL(s.callback()), { pkceCodeVerifier: s.verifier, expectedState: s.state });
@@ -807,6 +953,70 @@ test("deleting the account removes everything and tells every platform", async (
   await p.goto(`${SITE}/dashboard`);
   await p.waitForURL(/\/authorize|\/interaction\//);
   await context.close();
+});
+
+// Test mode -------------------------------------------------------------------------------------
+
+test("test mode: only testers sign in, test entries stay out of the picture, and going live clears them", async () => {
+  // The admin is still signed in to the portal from the merge test.
+  const t = await registerPlatform({ name: "Trial Platform", website: "https://trial.example", redirect: "http://127.0.0.1:3109/cb", notice: "http://127.0.0.1:3106/api/mq/notices" });
+  await page.goto(`${DEV}/platforms/${t.clientId}`);
+  assert.ok(await page.isVisible(".p-tag:has-text('Test mode')"));
+  await page.fill("#tester", "tester@example.com");
+  await page.click("button:has-text('Add tester')");
+  await page.waitForSelector(".p-row:has-text('tester@example.com')");
+
+  // Details can change while in test mode.
+  await page.fill("#e-description", "A platform under test, changed in the portal.");
+  await page.click("button:has-text('Save changes')");
+  await page.waitForSelector("text=Saved.");
+  await fitsNarrowScreen("portal-test-mode");
+
+  const config = await platform(t.clientId, t.clientSecret);
+  const signUp = async (email) => {
+    const context = await browser.newContext({ viewport: { width: 360, height: 780 } });
+    const p = await context.newPage();
+    const s = await startSignIn(config, "http://127.0.0.1:3109/cb");
+    await p.goto(s.url.href);
+    await p.waitForSelector("text=Test mode.");
+    await p.fill("#email", email);
+    await p.click("text=Send me a code");
+    await p.waitForSelector("#code");
+    await p.fill("#code", await latestCode(email));
+    await p.click("text=Continue");
+    await p.click("button:has-text('Not now')");
+    return { context, p, s };
+  };
+
+  // Someone who is not a tester cannot sign in.
+  const out = await signUp("outsider@example.com");
+  await out.p.waitForSelector("text=This platform is in test mode");
+  await out.context.close();
+
+  // The tester can, and what the platform sends is marked test.
+  const tst = await signUp("tester@example.com");
+  await finishAt(tst.p, tst.s);
+  const tokens = await oidc.authorizationCodeGrant(config, new URL(tst.s.callback()), { pkceCodeVerifier: tst.s.verifier, expectedState: tst.s.state });
+  await tst.s.cleanup();
+  assert.equal((await send("/v1/record", tokens.access_token, learned("trial-1"))).status, 201);
+  assert.equal((await db("select test from entries where key = 'trial-1'"))[0].test, true);
+  await tst.context.close();
+
+  // The developer asks for review with the checklist.
+  await page.goto(`${DEV}/platforms/${t.clientId}`);
+  await page.click("button:has-text('Ask for review')");
+  await page.waitForSelector("text=Tick every item first");
+  for (const box of await page.$$("input[name=check]")) await box.check();
+  await page.click("button:has-text('Ask for review')");
+  await page.waitForSelector("text=Review takes up to 10 working days");
+  const mail = (await readdir(OUTBOX)).length;
+  assert.ok(mail > 0, "the admins are emailed");
+
+  // Going live clears every test sign-in and test entry.
+  await approve(t.clientId);
+  assert.equal((await db("select count(*)::int as n from entries where client_id = $1", [t.clientId]))[0].n, 0);
+  assert.equal((await db("select count(*)::int as n from connections where client_id = $1", [t.clientId]))[0].n, 0);
+  await assert.rejects(oidc.refreshTokenGrant(config, tokens.refresh_token));
 });
 
 test("the daily job is protected and runs", async () => {

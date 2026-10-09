@@ -7,7 +7,7 @@ export const CODES_PER_HOUR = 5;
 export const CODE_MINUTES = 10;
 export const CODE_ATTEMPTS = 5;
 
-export type Purpose = "signin" | "portal";
+export type Purpose = "signin" | "portal" | "merge";
 
 export class CodeError extends Error {
   constructor(public reason: "bad_email" | "rate_limited" | "no_code" | "expired" | "too_many_attempts" | "wrong_code") {

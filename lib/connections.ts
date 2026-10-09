@@ -37,6 +37,22 @@ export async function getConnection(personId: string, clientId: string): Promise
   return r && toConnection(r);
 }
 
+/**
+ * The private ID a platform gets. Normally the pairwise ID; but once a platform (or another in
+ * its sector group) has an ID for this person, that one is kept. It differs from the pairwise
+ * ID only after two accounts were merged, and keeping it means platforms still recognise the
+ * person they know.
+ */
+export async function subFor(personId: string, clientId: string, sectorGroup: string): Promise<string> {
+  const r = await one<{ sub: string }>(
+    `select c.sub from connections c join clients cl on cl.client_id = c.client_id
+      where c.person_id = $1 and (c.client_id = $2 or cl.sector_group = $3)
+      order by (c.client_id = $2) desc, c.connected_at limit 1`,
+    [personId, clientId, sectorGroup],
+  );
+  return r?.sub ?? pairwiseSub(sectorGroup, personId);
+}
+
 /** Whether the person has ever connected any platform. The first permission screen introduces their given name. */
 export async function hasConnections(personId: string): Promise<boolean> {
   return !!(await one("select 1 from connections where person_id = $1 limit 1", [personId]));
@@ -57,7 +73,6 @@ export async function saveConnection(c: { personId: string; clientId: string; su
         `insert into connections (person_id, client_id, sub, scopes, email_choice, relay_address)
          values ($1, $2, $3, $4, $5, case when $5 = 'hide' then $6 else null end)
          on conflict (person_id, client_id) do update set
-           sub = excluded.sub,
            scopes = excluded.scopes,
            email_choice = coalesce(excluded.email_choice, connections.email_choice),
            relay_address = case

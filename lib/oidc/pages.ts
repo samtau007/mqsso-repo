@@ -1,5 +1,6 @@
 // Server-rendered pages for id.muslimquotient.com: email, code, permission screen, errors.
-// Plain HTML forms, no scripts. Solid colours only.
+// Plain HTML forms. The only script is the passkey one, inline with a per-response nonce.
+// Solid colours only.
 // The permission screen follows docs/design/Consent.html. The canvas has no screen for the
 // email and code steps, so they use the same layout and parts.
 
@@ -58,6 +59,7 @@ label.field{font-size:13px;color:var(--muted)}
 .err{color:var(--err);font-size:14px;margin:0}
 .note{margin:0;font-size:12px;color:var(--muted);text-align:center}
 .status{margin:0;font-size:14px;color:var(--lilac)}
+.test{margin:0;align-self:center;font-size:12px;color:var(--gold);border:1px solid var(--gold);border-radius:999px;padding:4px 12px}
 `;
 
 const LOGO = `<svg width="44" height="44" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="34" fill="none" stroke="#3a4c6b" stroke-width="14"/><path d="M50 16 A34 34 0 0 0 50 84" fill="none" stroke="#8a6ca6" stroke-width="14"/><rect x="44" y="10" width="12" height="12" rx="2.5" fill="#ffffff" transform="rotate(45 50 16)"/></svg>`;
@@ -72,12 +74,12 @@ function logos(clientName?: string): string {
   return `<div class="logos">${LOGO}${ARROW}<div class="tile" aria-hidden="true">${initial}</div></div>`;
 }
 
-export function layout(title: string, body: string): string {
+export function layout(title: string, body: string, script?: { nonce: string; code: string }): string {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="no-referrer"><meta name="robots" content="noindex">
 <title>${esc(title)} · Muslim Quotient</title><style>${CSS}</style></head>
-<body><main class="page">${body}</main></body></html>`;
+<body><main class="page">${body}</main>${script ? `<script nonce="${script.nonce}">${script.code}</script>` : ""}</body></html>`;
 }
 
 export function errorPage(title: string, html: string): string {
@@ -86,8 +88,50 @@ export function errorPage(title: string, html: string): string {
 
 const err = (e?: string) => (e ? `<p class="err" role="alert">${esc(e)}</p>` : "");
 
-export function emailStep(o: { uid: string; clientName: string; email?: string; error?: string }): string {
+/**
+ * WebAuthn in the browser, without a library: base64url in and out of the shapes the server
+ * library (SimpleWebAuthn) speaks. Buttons marked data-passkey="signin" or "add" use it.
+ */
+function passkeyScript(uid: string): string {
+  return `(function(){
+var uid=${JSON.stringify(uid)};
+if(!window.PublicKeyCredential)return;
+var dec=function(s){s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';return Uint8Array.from(atob(s),function(c){return c.charCodeAt(0)}).buffer};
+var enc=function(b){var s='',a=new Uint8Array(b);for(var i=0;i<a.length;i++)s+=String.fromCharCode(a[i]);return btoa(s).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'')};
+var post=function(a,b){return fetch('/interaction/'+uid+'/'+a,{method:'POST',headers:{'content-type':'application/json'},credentials:'same-origin',body:JSON.stringify(b||{})}).then(function(r){return r.json()})};
+var say=function(t){var e=document.getElementById('pk-status');if(e){e.textContent=t;e.hidden=!t}};
+var ids=function(l){return(l||[]).map(function(c){return Object.assign({},c,{id:dec(c.id)})})};
+document.querySelectorAll('[data-passkey]').forEach(function(b){
+  b.hidden=false;
+  b.addEventListener('click',function(){
+    say('');b.disabled=true;
+    var add=b.getAttribute('data-passkey')==='add';
+    post(add?'pkregopts':'pkopts').then(function(o){
+      if(o.error)throw new Error(o.error);
+      return add
+        ?navigator.credentials.create({publicKey:Object.assign({},o,{challenge:dec(o.challenge),user:Object.assign({},o.user,{id:dec(o.user.id)}),excludeCredentials:ids(o.excludeCredentials)})})
+        :navigator.credentials.get({publicKey:Object.assign({},o,{challenge:dec(o.challenge),allowCredentials:ids(o.allowCredentials)})});
+    }).then(function(c){
+      var r=c.response,body={id:c.id,rawId:enc(c.rawId),type:c.type,clientExtensionResults:c.getClientExtensionResults(),authenticatorAttachment:c.authenticatorAttachment||undefined};
+      body.response=add
+        ?{clientDataJSON:enc(r.clientDataJSON),attestationObject:enc(r.attestationObject),transports:r.getTransports?r.getTransports():[]}
+        :{clientDataJSON:enc(r.clientDataJSON),authenticatorData:enc(r.authenticatorData),signature:enc(r.signature),userHandle:r.userHandle?enc(r.userHandle):undefined};
+      return post(add?'pkreg':'pk',body);
+    }).then(function(r){
+      if(r.redirect){location.href=r.redirect;return}
+      throw new Error(r.error||'');
+    }).catch(function(e){
+      b.disabled=false;
+      say(e&&e.name==='NotAllowedError'?'No passkey was used.':(e&&e.message)||'That did not work. Try again, or use your email.');
+    });
+  });
+});
+})();`;
+}
+
+export function emailStep(o: { uid: string; clientName: string; nonce: string; testMode?: boolean; email?: string; error?: string }): string {
   return layout("Sign in", `
+${o.testMode ? `<p class="test" role="note">Test mode. Only this platform's testers can sign in.</p>` : ""}
 ${logos(o.clientName)}
 <div class="head">
   <h1>Continue to ${esc(o.clientName)} with Muslim Quotient</h1>
@@ -98,10 +142,46 @@ ${logos(o.clientName)}
   <input class="input" id="email" name="email" type="email" required autocomplete="email" autofocus value="${esc(o.email ?? "")}" placeholder="you@example.com">
   ${err(o.error)}
   <button class="btn" type="submit">Send me a code</button>
+  <button class="btn quiet" type="button" data-passkey="signin" hidden style="border:1px solid var(--ink)">Sign in with a passkey</button>
+  <p class="err" id="pk-status" role="alert" hidden></p>
 </form>
 <p class="note">We send a 6-digit code. No password, no name, no phone number.</p>
+<p class="note"><a href="/interaction/${esc(o.uid)}?step=recover">Cannot get to your email? Use a recovery code</a></p>
 <div class="grow"></div>
-<form method="post" action="/interaction/${esc(o.uid)}/abort"><button class="btn quiet" type="submit">Not now</button></form>`);
+<form method="post" action="/interaction/${esc(o.uid)}/abort"><button class="btn quiet" type="submit">Not now</button></form>`, { nonce: o.nonce, code: passkeyScript(o.uid) });
+}
+
+export function recoverStep(o: { uid: string; clientName: string; email?: string; error?: string }): string {
+  return layout("Use a recovery code", `
+${logos(o.clientName)}
+<div class="head">
+  <h1>Use a recovery code</h1>
+  <p class="sub">One of the ten codes you printed or saved. Each works once.</p>
+</div>
+<form method="post" action="/interaction/${esc(o.uid)}/recover" class="card">
+  <label class="field" for="email">The email you signed up with</label>
+  <input class="input" id="email" name="email" type="email" required autocomplete="email" value="${esc(o.email ?? "")}">
+  <label class="field" for="recovery">Recovery code</label>
+  <input class="input" id="recovery" name="recovery" required autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCDE-FGHJK">
+  ${err(o.error)}
+  <button class="btn" type="submit">Sign in</button>
+</form>
+<div class="links"><a class="link" href="/interaction/${esc(o.uid)}?step=email">Back to email</a></div>`);
+}
+
+export function offerStep(o: { uid: string; clientName: string; nonce: string }): string {
+  return layout("Sign in faster next time", `
+${logos(o.clientName)}
+<div class="head">
+  <h1>Sign in faster next time</h1>
+  <p class="sub">Add a passkey: your fingerprint, face or screen lock signs you in, with no code to wait for. It stays on your device.</p>
+</div>
+<div class="card">
+  <button class="btn" type="button" data-passkey="add" hidden>Add a passkey</button>
+  <p class="err" id="pk-status" role="alert" hidden></p>
+  <form method="post" action="/interaction/${esc(o.uid)}/skip"><button class="btn quiet" type="submit">Not now</button></form>
+</div>
+<p class="note">You can add or remove passkeys any time under Privacy on your dashboard.</p>`, { nonce: o.nonce, code: passkeyScript(o.uid) });
 }
 
 export function codeStep(o: { uid: string; email: string; clientName?: string; error?: string; sent?: boolean }): string {

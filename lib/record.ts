@@ -14,7 +14,7 @@ export class ApiError extends Error {
   }
 }
 
-export type Caller = { personId: string; clientId: string; clientType: "server" | "public"; scopes: Set<string>; connectedAt: Date };
+export type Caller = { personId: string; clientId: string; clientType: "server" | "public"; scopes: Set<string>; connectedAt: Date; test: boolean };
 
 /** Checks the bearer token and the person's current permissions for this platform. */
 export async function authenticate(authorization: string | null): Promise<Caller> {
@@ -32,12 +32,13 @@ export async function authenticate(authorization: string | null): Promise<Caller
       where c.person_id = $1 and c.client_id = $2 and c.revoked_at is null`,
     [token.accountId, token.clientId],
   );
-  if (!row || !row.approved) throw new ApiError(401, "invalid_token", "This person is not connected to your platform.");
+  if (!row) throw new ApiError(401, "invalid_token", "This person is not connected to your platform.");
 
   // What the token carries and what the person allows now: both must hold.
   const tokenScopes = new Set(String(token.scope ?? "").split(" "));
   const scopes = new Set(row.scopes.filter((s) => tokenScopes.has(s)));
-  return { personId: token.accountId, clientId: token.clientId, clientType: row.client_type, scopes, connectedAt: row.connected_at };
+  // A platform not approved yet is in test mode: what it sends is marked test and cleared at approval.
+  return { personId: token.accountId, clientId: token.clientId, clientType: row.client_type, scopes, connectedAt: row.connected_at, test: !row.approved };
 }
 
 function needsScope(caller: Caller, scope: string, part: string) {
@@ -70,15 +71,15 @@ function entryError(e: unknown, index?: number): never {
   throw e;
 }
 
-async function insertEntry(c: PoolClient, personId: string, clientId: string, e: Entry, importId: string | null) {
+async function insertEntry(c: PoolClient, personId: string, clientId: string, e: Entry, importId: string | null, test = false) {
   return c.query<{ id: string }>(
     `insert into entries (person_id, client_id, type, action, title, progress_done, progress_of, unit, amount,
-                          range_low, range_high, range_of, occurred_at, tz, vocabulary_version, key, source, import_id)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'server', $17)
+                          range_low, range_high, range_of, occurred_at, tz, vocabulary_version, key, source, import_id, test)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'server', $17, $18)
      on conflict (client_id, key) do nothing
      returning id`,
     [personId, clientId, e.type, e.action, e.title, e.progress?.done ?? null, e.progress?.of ?? null, e.unit ?? null, e.amount ?? null,
-      e.range?.low ?? null, e.range?.high ?? null, e.range?.of ?? null, e.occurredAt, e.tz, VOCABULARY_VERSION, e.key, importId],
+      e.range?.low ?? null, e.range?.high ?? null, e.range?.of ?? null, e.occurredAt, e.tz, VOCABULARY_VERSION, e.key, importId, test],
   );
 }
 
@@ -113,7 +114,7 @@ export async function record(caller: Caller, body: unknown, now: Date = new Date
       throw new ApiError(429, "rate_limited", `Up to ${PER_MINUTE} entries a minute per person. Try again in a minute.`, { retry_after: 60 });
     }
 
-    const r = await insertEntry(c, caller.personId, caller.clientId, entry, null);
+    const r = await insertEntry(c, caller.personId, caller.clientId, entry, null, caller.test);
     if (!r.rows[0]) throw new ApiError(409, "key_in_use", "This key was just used. Send it again to get its id.");
     return { id: r.rows[0].id, created: true };
   });
@@ -164,8 +165,8 @@ export async function requestImport(caller: Caller, body: unknown, now: Date = n
 /** The person approves or declines an import from their dashboard. */
 export async function decideImport(personId: string, importId: string, approve: boolean): Promise<boolean> {
   return tx(async (c) => {
-    const imp = await c.query<{ client_id: string; pending: (Omit<Entry, "occurredAt"> & { occurredAt: string })[] }>(
-      "select client_id, pending from imports where id = $1 and person_id = $2 and status = 'pending' for update",
+    const imp = await c.query<{ client_id: string; approved: boolean; pending: (Omit<Entry, "occurredAt"> & { occurredAt: string })[] }>(
+      "select i.client_id, cl.approved, i.pending from imports i join clients cl on cl.client_id = i.client_id where i.id = $1 and i.person_id = $2 and i.status = 'pending' for update of i",
       [importId, personId],
     );
     const row = imp.rows[0];
@@ -173,7 +174,7 @@ export async function decideImport(personId: string, importId: string, approve: 
     let added = 0;
     if (approve) {
       for (const e of row.pending) {
-        const r = await insertEntry(c, personId, row.client_id, { ...e, occurredAt: new Date(e.occurredAt) }, importId);
+        const r = await insertEntry(c, personId, row.client_id, { ...e, occurredAt: new Date(e.occurredAt) }, importId, !row.approved);
         added += r.rowCount ?? 0;
       }
     }

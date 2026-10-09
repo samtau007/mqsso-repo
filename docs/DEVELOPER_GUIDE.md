@@ -1,6 +1,6 @@
 # Muslim Quotient Developer Guide
 
-Version 1.4 · 9 October 2026 · draft for early partners. Addresses marked as examples will be confirmed before launch. Changes are listed at the end.
+Version 1.6 · 9 October 2026 · draft for early partners. Addresses marked as examples will be confirmed before launch. Changes are listed at the end.
 
 Add "Sign in with Muslim Quotient" to your platform using standard OpenID Connect, then bring your existing users across without losing their accounts or their history.
 
@@ -21,7 +21,7 @@ The person's other platforms and their record never leave Muslim Quotient. You r
 
 Muslim Quotient is a standard OpenID Connect provider, so any sign-in library you already use (Auth.js, Passport, AppAuth, Firebase custom OIDC) works without special code.
 
-1. **Register your platform** in the developer portal (example address: `developers.muslimquotient.com`). Give your name, website, a short description, your redirect addresses, your notice address, how your platform signs in, and whether you send entries from a server, from devices, or both. All your redirect addresses must be on one host; register a separate platform for each host. You receive a `client_id`, a `client_secret` (server sign-in only) and a notice signing secret. Secrets are shown once; you can rotate them in the portal. Platforms are approved before they go live, and cannot sign anyone in until then.
+1. **Register your platform** in the developer portal (example address: `developers.muslimquotient.com`). Give your name, website, a short description, your redirect addresses, your notice address, how your platform signs in, and whether you send entries from a server, from devices, or both. All your redirect addresses must be on one host; register a separate platform for each host. You receive a `client_id`, a `client_secret` (server sign-in only) and a notice signing secret. Secrets are shown once; you can rotate them in the portal. Your platform starts in test mode, where only the testers you list can sign in, and goes live once approved (see Testing and going live).
    - **From a server**: your server keeps the `client_secret`.
    - **From a browser extension, or a mobile or desktop client without a server**: no secret; PKCE protects the exchange. Notices need a server, so the notice address is optional here.
 2. **Add the button.** Use the official button from the portal: white on dark screens, night blue on light screens, label "Sign in with Muslim Quotient".
@@ -49,7 +49,7 @@ grant_type=authorization_code&code=CODE&redirect_uri=...&client_id=...&client_se
 
 You may send the secret in the body, as above, or as HTTP Basic authentication; both work. Without a server, send no secret.
 
-5. **Read the person's ID** from the `sub` value in the ID token. Store it against your user. That is the only identifier you will ever receive for this person.
+5. **Read the person's ID** from the `sub` value in the ID token. Store it against your user. That is the only identifier you will ever receive for this person. It stays the same for as long as the person is connected: on a new device, after they add a passkey, and even if they later merge two Muslim Quotient accounts into one.
 
    The token response also carries a `refresh_token`. Every time you use it you receive a new one, and the one you used stops working, so always keep the newest. Access tokens last one hour. Refresh tokens do not expire with time: a connection lasts until the person disconnects or deletes their account, so the person never has to connect again. Using a refresh token that was already used ends the connection, as a safeguard.
 
@@ -278,7 +278,15 @@ Platforms that break these rules lose access, and their users are told.
 
 ## Testing and going live
 
-Every platform gets a test environment with sample people, at `id.sandbox.muslimquotient.com` and `api.sandbox.muslimquotient.com`. Nothing sent there reaches a real record.
+Every platform starts in **test mode**. There is no separate test environment: you use the real addresses from the start.
+
+- In test mode, only the **testers** you list on your platform's page in the developer portal can sign in with it (up to 25 email addresses). Anyone else sees that the platform is in test mode. The sign-in page shows a "Test mode" label.
+- Your testers sign in, allow permissions and receive notices exactly as everyone will later. Entries you send for them are accepted and marked as test: they show on your platform's page in the tester's dashboard, and stay out of their picture.
+- When Muslim Quotient approves your platform, it goes live: anyone can sign in, and every test sign-in and test entry is cleared, so nothing from testing reaches a real record. Testers connect again like anyone else.
+- While in test mode you can change everything on your platform's page, including the permissions you ask for. Once live, permissions change through review.
+- Use "Send a test notice" to check your notice address before a real notice arrives.
+
+When you are ready, tick the checklist on your platform's page and press "Ask for review":
 
 - [ ] Sign-in works with PKCE and checks `state`
 - [ ] You store only the `sub`, and link and merge existing accounts as described above
@@ -288,7 +296,7 @@ Every platform gets a test environment with sample people, at `id.sandbox.muslim
 - [ ] The official button is used, unchanged
 - [ ] Your privacy policy says what you send to Muslim Quotient
 
-Send the checklist from the developer portal. Review takes up to 10 working days.
+Review takes up to 10 working days.
 
 ## Still to decide before this guide is final
 
@@ -301,6 +309,8 @@ Send the checklist from the developer portal. Review takes up to 10 working days
 
 ## Changes
 
+- **1.6 · 9 October 2026.** Test mode replaces the separate sandbox: every platform starts in test mode with testers you list, test entries stay out of the picture and are cleared when the platform goes live. The go-live checklist is sent from the portal with "Ask for review". Platform details can be edited in the portal.
+- **1.5 · 9 October 2026.** The `sub` you hold never changes while the person stays connected, including after they merge two Muslim Quotient accounts. A person who already allowed your platform is not asked again when they sign in on a new device; the permission screen shows only for something new. People can sign in with a passkey or a recovery code; nothing changes for your platform.
 - **1.4 · 9 October 2026.** Notices are specified: the body, the `MQ-Signature` format with a verification example, the 5-minute window, `MQ-Notice-Id`, retries for 30 days, and `notice.test` from the portal.
 - **1.3 · 9 October 2026.** Connections do not expire: refresh tokens last until used, and the connection until the person disconnects or deletes their account.
 - **1.2 · 9 October 2026.** The record service is live. Added: the import reply (`202`, held until the person approves) and that a second import is refused; the full list of errors; a repeated `key` returns `200`; a range must have `low` below `high`; fields outside an entry's part are refused; entries must come from a server; settings return only allowed parts, with `null` for parts not set.

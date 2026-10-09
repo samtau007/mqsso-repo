@@ -29,7 +29,20 @@ export async function sendMail(m: Mail): Promise<void> {
   if (!r.ok) throw new Error(`Email was not sent (${r.status})`);
 }
 
-export function codeEmail(code: string, purpose: "signin" | "portal"): Omit<Mail, "to"> {
+export function codeEmail(code: string, purpose: "signin" | "portal" | "merge"): Omit<Mail, "to"> {
+  if (purpose === "merge") {
+    return {
+      subject: `${code} is your Muslim Quotient code`,
+      text: [
+        `Someone signed in to Muslim Quotient asked to merge the account that uses this email into theirs. The code is ${code}`,
+        "",
+        "Only give it if that was you: merging moves everything from this account into the other one, and deletes this one.",
+        "It works for 10 minutes. If you did not ask for it, you can ignore this email.",
+        "",
+        "Muslim Quotient",
+      ].join("\n"),
+    };
+  }
   const where = purpose === "portal" ? "the Muslim Quotient developer portal" : "Muslim Quotient";
   return {
     subject: `${code} is your Muslim Quotient code`,
