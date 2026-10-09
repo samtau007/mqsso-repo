@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 // One deployment serves several hosts:
 //   id.muslimquotient.com          sign-in service   -> pages/api/id
 //   developers.muslimquotient.com  developer portal  -> app/developers
+//   api.muslimquotient.com         record service    -> app/api/v1
 //   muslimquotient.com             website and dashboard
 // No cookies are set here; no visitor tracking.
 
@@ -16,6 +17,7 @@ function hostOf(origin: string | undefined, fallback: string) {
 
 const ID_HOST = hostOf(process.env.MQ_ID_ORIGIN, "https://id.muslimquotient.com");
 const DEV_HOST = hostOf(process.env.MQ_DEVELOPERS_ORIGIN, "https://developers.muslimquotient.com");
+const API_HOST = hostOf(process.env.MQ_API_ORIGIN, "https://api.muslimquotient.com");
 
 const notFound = () => new NextResponse("Not found", { status: 404 });
 
@@ -31,6 +33,12 @@ export function middleware(request: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
+  if (host === API_HOST) {
+    if (!path.startsWith("/v1/")) return notFound();
+    url.pathname = `/api${path}`;
+    return NextResponse.rewrite(url);
+  }
+
   if (host === DEV_HOST) {
     if (path.startsWith("/api/") || path.startsWith("/developers")) return notFound();
     url.pathname = path === "/" ? "/developers" : `/developers${path}`;
@@ -38,7 +46,7 @@ export function middleware(request: NextRequest) {
   }
 
   // The website must not answer for the other hosts' routes.
-  if (path.startsWith("/api/id") || path.startsWith("/developers")) return notFound();
+  if (path.startsWith("/api/id") || path.startsWith("/api/v1") || path.startsWith("/developers")) return notFound();
   return NextResponse.next();
 }
 

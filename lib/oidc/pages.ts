@@ -91,7 +91,7 @@ export function emailStep(o: { uid: string; clientName: string; email?: string; 
 ${logos(o.clientName)}
 <div class="head">
   <h1>Continue to ${esc(o.clientName)} with Muslim Quotient</h1>
-  <p class="sub">Sign in, or create your ID with the same code</p>
+  <p class="sub">Sign in, or create your MQ ID with the same code</p>
 </div>
 <form method="post" action="/interaction/${esc(o.uid)}/email" class="card">
   <label class="field" for="email">Your email</label>

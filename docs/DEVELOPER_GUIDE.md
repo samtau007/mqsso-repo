@@ -1,6 +1,6 @@
 # Muslim Quotient Developer Guide
 
-Version 1.1 · 8 October 2026 · draft for early partners. Addresses marked as examples will be confirmed before launch. Changes are listed at the end.
+Version 1.3 · 9 October 2026 · draft for early partners. Addresses marked as examples will be confirmed before launch. Changes are listed at the end.
 
 Add "Sign in with Muslim Quotient" to your platform using standard OpenID Connect, then bring your existing users across without losing their accounts or their history.
 
@@ -51,7 +51,7 @@ You may send the secret in the body, as above, or as HTTP Basic authentication; 
 
 5. **Read the person's ID** from the `sub` value in the ID token. Store it against your user. That is the only identifier you will ever receive for this person.
 
-   The token response also carries a `refresh_token`. Every time you use it you receive a new one, and the one you used stops working, so always keep the newest. Access tokens last one hour.
+   The token response also carries a `refresh_token`. Every time you use it you receive a new one, and the one you used stops working, so always keep the newest. Access tokens last one hour. Refresh tokens do not expire with time: a connection lasts until the person disconnects or deletes their account, so the person never has to connect again. Using a refresh token that was already used ends the connection, as a safeguard.
 
 ```json
 {
@@ -120,8 +120,10 @@ Content-Type: application/json
 }
 ```
 
+- The reply is `202` with `{ "id": "...", "status": "pending", "entries": 214 }`. Nothing is added yet.
 - The person sees a preview in Muslim Quotient ("Halaqa Notes wants to add 214 past entries") and approves or declines the whole import.
-- Import is allowed once per person, within 30 days of linking, up to 5,000 entries. The `key` on each entry stops duplicates if you resend.
+- Import is allowed once per person, within 30 days of linking, up to 5,000 entries. A second import for the same person is refused with `409`. The `key` on each entry stops duplicates, within the import and against entries you already sent live.
+- Every entry is checked before the import is accepted. If one is wrong, nothing is held and the error names the entry by its position (`index`).
 - If your app keeps progress on the device, send the import from the app the next time it opens after linking (see device-sent entries).
 
 ### Retiring your old sign-in
@@ -172,7 +174,22 @@ Content-Type: application/json
 
 - The reply is `201` with the entry's id, or `403` if the person has not allowed that part.
 - Entries are write-only for platforms. You cannot read them back, and you cannot see what others added.
-- From a server: up to 60 entries a minute per person. Resending the same `key` returns the first entry, not a copy.
+- From a server: up to 60 entries a minute per person. Resending the same `key` returns `200` with the first entry's id, not a copy.
+- A range needs `low` below `high`, with both between 0 and `of`. A range with equal ends is a single score and is refused.
+- Only send fields listed for the part. Anything else, including `score`, `rank` or `percentile`, is refused.
+- `occurred_at` is a full date and time with a time zone offset (use `Z` for UTC), and may not be in the future.
+- Entries come from your server, with the token of a platform that has a client secret. Tokens issued to an extension or a client without a server cannot add entries until device-sent entries open.
+
+**Errors.** Every error is JSON: `{ "error": "insufficient_scope", "error_description": "..." }`, plus `field` (and `index` for an import) when an entry is wrong.
+
+| Status | `error` | Means |
+| --- | --- | --- |
+| `400` | `invalid_entry`, `invalid_request`, `too_many_entries` | The entry or request does not fit the vocabulary. Fix it; sending it again will not help |
+| `401` | `invalid_token` | The token expired, or the person disconnected your platform. Refresh the token; if that fails, the person is no longer connected |
+| `403` | `insufficient_scope`, `server_required`, `import_closed` | The person has not allowed this part, the token cannot add entries, or the 30 days for an import have passed |
+| `409` | `key_in_use`, `already_imported` | The key belongs to another person's entry, or this person's history was already sent |
+| `429` | `rate_limited` | Too many entries this minute. Wait for `Retry-After` seconds |
+| `500` | `server_error` | Our fault. Send again with the same `key`; you will not get a copy |
 
 ### Sending from the app itself (no server)
 
@@ -201,7 +218,7 @@ Authorization: Bearer ACCESS_TOKEN
 }
 ```
 
-The location is rounded to the city unless the person allows more. Check `updated_at` when the person returns, or listen for the `settings.updated` notice.
+You receive only the parts the person allowed: `prayer` with `mq.settings.prayer`, `language` with `mq.settings.language`. A part the person has not set yet is `null`. The location is rounded to the city unless the person allows more. Check `updated_at` when the person returns, or listen for the `settings.updated` notice.
 
 ## When a person disconnects or deletes
 
@@ -262,5 +279,7 @@ Send the checklist from the developer portal. Review takes up to 10 working days
 
 ## Changes
 
+- **1.3 · 9 October 2026.** Connections do not expire: refresh tokens last until used, and the connection until the person disconnects or deletes their account.
+- **1.2 · 9 October 2026.** The record service is live. Added: the import reply (`202`, held until the person approves) and that a second import is refused; the full list of errors; a repeated `key` returns `200`; a range must have `low` below `high`; fields outside an entry's part are refused; entries must come from a server; settings return only allowed parts, with `null` for parts not set.
 - **1.1 · 8 October 2026.** Registration asks how your platform signs in (server, or extension or client without a server); redirect addresses must be on one host; secrets are shown once and can be rotated. The token endpoint accepts the secret in the body or as HTTP Basic. Refresh tokens are described: replaced on every use. The relay service is settled (Postmark).
 - **1 · 8 October 2026.** First draft.

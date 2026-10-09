@@ -1,5 +1,6 @@
 // Milestone 1, done when: a test platform registers in the portal, follows the developer guide,
-// and signs a person in. Milestone 2, done when: sign up on muslimquotient.com works end to end. Runs the built app (npm run build first) against a real Postgres.
+// and signs a person in. Milestone 2, done when: sign up on muslimquotient.com works end to end.
+// Milestone 3 (record service): a platform sends entries with the person's token, and they appear on the dashboard. Runs the built app (npm run build first) against a real Postgres.
 //
 //   TEST_DATABASE_URL=postgres://user:pass@127.0.0.1/mq_test npm run test:e2e
 //
@@ -22,6 +23,7 @@ const PORT = 3100;
 const DB = process.env.TEST_DATABASE_URL || "postgres://mq:mq@127.0.0.1/mq_test";
 const ID = `http://id.localhost:${PORT}`;
 const DEV = `http://developers.localhost:${PORT}`;
+const API = `http://api.localhost:${PORT}`;
 const SITE = `http://localhost:${PORT}`;
 const OUTBOX = path.join(ROOT, ".mq-test", "outbox");
 const ADMIN = "admin@example.com";
@@ -121,7 +123,7 @@ async function startServer(extra = {}) {
     env: {
       ...process.env, ...SECRETS,
       DATABASE_URL: DB,
-      MQ_ID_ORIGIN: ID, MQ_DEVELOPERS_ORIGIN: DEV, MQ_SITE_ORIGIN: SITE,
+      MQ_ID_ORIGIN: ID, MQ_DEVELOPERS_ORIGIN: DEV, MQ_API_ORIGIN: API, MQ_SITE_ORIGIN: SITE,
       MQ_MAIL_OUTBOX: OUTBOX, MQ_PORTAL_ADMINS: ADMIN, RESEND_API_KEY: "",
       ...extra,
     },
@@ -142,7 +144,7 @@ before(async () => {
   await resetDatabase();
   SECRETS = secrets();
   await startServer();
-  for (const port of [3101, 3102, 3103, 3104]) await startCallbackServer(port);
+  for (const port of [3101, 3102, 3103, 3104, 3105]) await startCallbackServer(port);
   browser = await chromium.launch({ executablePath: CHROMIUM });
   // CLAUDE.md: every screen must work at 360px wide.
   page = await browser.newPage({ viewport: { width: 360, height: 780 } });
@@ -176,7 +178,7 @@ async function portalSignIn(email) {
   await page.waitForLoadState("networkidle");
 }
 
-async function registerPlatform({ name, website, redirect, notice }) {
+async function registerPlatform({ name, website, redirect, notice, scopes = ["email", "mq.record.learning"] }) {
   await page.goto(`${DEV}/new`);
   await page.waitForSelector("#name", { timeout: 5000 }).catch(async (e) => {
     console.log(page.url(), (await page.content()).slice(0, 2000));
@@ -188,8 +190,7 @@ async function registerPlatform({ name, website, redirect, notice }) {
   await page.fill("#description", "A test platform for Muslim Quotient sign-in.");
   await page.fill("#redirect_uris", redirect);
   await page.fill("#notice_uri", notice);
-  await page.check("input[value='email']");
-  await page.check("input[value='mq.record.learning']");
+  for (const scope of scopes) await page.check(`input[value='${scope}']`);
   await page.click("text=Register platform");
   await page.waitForSelector("[data-testid=client-secret]");
   return {
@@ -220,10 +221,10 @@ async function platform(clientId, clientSecret) {
 }
 
 /** Starts sign-in in the browser and returns the redirect the platform's callback receives. */
-async function startSignIn(config, redirectUri, { pkce = true } = {}) {
+async function startSignIn(config, redirectUri, { pkce = true, scope = "openid email mq.record.learning" } = {}) {
   const verifier = oidc.randomPKCECodeVerifier();
   const state = oidc.randomState();
-  const params = { redirect_uri: redirectUri, scope: "openid email mq.record.learning", state };
+  const params = { redirect_uri: redirectUri, scope, state };
   if (pkce) Object.assign(params, { code_challenge: await oidc.calculatePKCECodeChallenge(verifier), code_challenge_method: "S256" });
   const url = oidc.buildAuthorizationUrl(config, params);
 
@@ -313,6 +314,13 @@ test("a new person signs up with an email code, gets a given name, hides their e
   // Refresh tokens are replaced on every use, and the old one stops working.
   const next = await oidc.refreshTokenGrant(config, tokens.refresh_token);
   assert.ok(next.refresh_token && next.refresh_token !== tokens.refresh_token);
+
+  // A connection lasts until the person disconnects: neither the grant nor the refresh token expires.
+  const lasting = await db("select type, expires_at from oidc_payloads where type in ('Grant', 'RefreshToken') and consumed_at is null");
+  assert.ok(lasting.some((r) => r.type === "Grant") && lasting.some((r) => r.type === "RefreshToken"));
+  for (const r of lasting) assert.equal(r.expires_at, null, `${r.type} has no expiry`);
+
+  // Using an old refresh token again ends the connection.
   await assert.rejects(oidc.refreshTokenGrant(config, tokens.refresh_token));
   await s.cleanup();
 
@@ -402,7 +410,7 @@ test("a newcomer creates their ID from the home page and lands on their dashboar
   const fresh = await context.newPage();
   await fresh.goto(SITE);
   assert.equal(await fresh.evaluate(() => document.documentElement.scrollWidth <= 360), true, "home page fits 360px");
-  await fresh.click("text=Create your ID");
+  await fresh.click("text=Create your MQ ID");
   await fresh.waitForSelector("#email");
   assert.ok(fresh.url().startsWith(`${ID}/interaction/`), "sign-up happens on the sign-in service");
   await fresh.fill("#email", "newcomer@example.com");
@@ -467,6 +475,113 @@ test("the dashboard shows only the person's own record, and the website shares o
   for (const name of ["Halaqa Notes", "Quran Circle", "Our Product One", "Our Product Two"]) assert.ok(await page.isVisible(`text=${name}`), name);
   assert.equal(await page.isVisible(".d-plat >> text=Muslim Quotient"), false, "the website itself is not listed as a platform");
   await fitsNarrowScreen("dashboard");
+});
+
+// Milestone 3: the record service ------------------------------------------------------------
+
+const CALLBACK_E = "http://127.0.0.1:3105/auth/mq/callback";
+const PRACTICE_SCOPE = "openid mq.record.practice mq.record.import mq.settings.prayer";
+
+/** A platform calling the record service from its server. */
+function send(path, token, body, method = "POST") {
+  return localFetch(`${API}${path}`, {
+    method,
+    headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), ...(body ? { "content-type": "application/json" } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+}
+
+const day = (n) => new Date(Date.now() - n * 86_400_000).toISOString().replace(/\.\d+Z$/, "Z");
+const kept = (key, at = day(0)) => ({ vocabulary_version: 1, type: "practice", action: "act.kept", title: "Daily istighfar kept", occurred_at: at, tz: "Asia/Kolkata", key });
+
+test("a platform adds entries with the person's token, only for the parts the person allowed", async () => {
+  const e = await registerPlatform({
+    name: "Istighfar Test", website: "https://istighfar.example", redirect: CALLBACK_E, notice: "https://istighfar.example/api/mq/notices",
+    scopes: ["mq.record.practice", "mq.record.import", "mq.settings.prayer"],
+  });
+  await approve(e.clientId);
+  await setGroup(e.clientId, "muslimquotient");
+  subs.e = e;
+
+  // The person from the tests above, still signed in to Muslim Quotient in this browser.
+  const config = await platform(e.clientId, e.clientSecret);
+  const s = await startSignIn(config, CALLBACK_E, { scope: PRACTICE_SCOPE });
+  await page.goto(s.url.href);
+  await page.waitForSelector("text=Signed in as");
+  assert.ok(await page.isVisible("text=Add what you practise here to your record"));
+  await page.click("button:has-text('Allow')");
+  await page.waitForTimeout(300);
+  const tokens = await oidc.authorizationCodeGrant(config, new URL(s.callback()), { pkceCodeVerifier: s.verifier, expectedState: s.state });
+  await s.cleanup();
+  assert.equal(tokens.claims().sub, subs.grouped, "same private ID as our other products");
+  subs.token = tokens.access_token;
+
+  assert.equal((await send("/v1/record", null, kept("x"))).status, 401);
+  assert.equal((await send("/v1/record", "not-a-token", kept("x"))).status, 401);
+
+  const first = await send("/v1/record", subs.token, kept("day-0"));
+  assert.equal(first.status, 201);
+  const { id } = await first.json();
+  const again = await send("/v1/record", subs.token, kept("day-0"));
+  assert.equal(again.status, 200, "resending a key returns the first entry");
+  assert.equal((await again.json()).id, id);
+
+  const learning = await send("/v1/record", subs.token, { ...kept("l-1"), type: "learning", action: "lesson.completed" });
+  assert.equal(learning.status, 403, "Learning was not allowed");
+  assert.equal((await learning.json()).error, "insufficient_scope");
+
+  const unknown = await send("/v1/record", subs.token, { ...kept("u-1"), action: "act.counted" });
+  assert.equal(unknown.status, 400);
+  assert.match((await unknown.json()).error_description, /Unknown action/);
+  const counted = await send("/v1/record", subs.token, { ...kept("c-1"), amount: 100 });
+  assert.equal(counted.status, 400, "no counts for practice yet");
+  const noRange = await send("/v1/record", subs.token, { ...kept("r-1"), type: "reflection", action: "test.result", title: "Worship" });
+  assert.equal(noRange.status, 400, "a reflection without a range is refused");
+
+  const settings = await send("/v1/settings", subs.token, null, "GET");
+  assert.equal(settings.status, 200);
+  const body = await settings.json();
+  assert.equal(body.prayer, null, "not set yet");
+  assert.equal("language" in body, false, "language was not allowed");
+
+  const rows = await db("select person_id, type, action, source, tz from entries where id = $1", [id]);
+  assert.deepEqual({ ...rows[0], person_id: undefined }, { person_id: undefined, type: "practice", action: "act.kept", source: "server", tz: "Asia/Kolkata" });
+});
+
+test("past activity waits for the person's approval on the dashboard, and is allowed once", async () => {
+  const history = [kept("day-3", day(3)), kept("day-2", day(2)), kept("day-2", day(2))];
+  const r = await send("/v1/record/import", subs.token, { vocabulary_version: 1, entries: history.map(({ vocabulary_version, ...e }) => e) });
+  assert.equal(r.status, 202);
+  const imp = await r.json();
+  assert.equal(imp.status, "pending");
+  assert.equal(imp.entries, 2, "a repeated key counts once");
+  assert.equal((await send("/v1/record/import", subs.token, { vocabulary_version: 1, entries: [kept("day-9", day(9))] })).status, 409);
+  assert.equal((await db("select count(*)::int as n from entries where import_id = $1", [imp.id]))[0].n, 0, "nothing added before approval");
+
+  await page.goto(`${SITE}/dashboard`);
+  await page.waitForSelector("text=Istighfar Test wants to add 2 past entries to your record.");
+  await fitsNarrowScreen("dashboard-import");
+  await page.click("button:has-text('Add them')");
+  await page.waitForSelector("text=Istighfar Test wants to add", { state: "detached" });
+  assert.equal((await db("select count(*)::int as n from entries where import_id = $1", [imp.id]))[0].n, 2);
+  assert.ok(await page.isVisible("text=3 entries added"));
+});
+
+test("entries are limited to 60 a minute per person, and stop when the person disconnects", async () => {
+  // One entry was added live in the test above, within this minute.
+  const sent = await Promise.all(Array.from({ length: 60 }, (_, i) => send("/v1/record", subs.token, kept(`burst-${i}`))));
+  const statuses = sent.map((r) => r.status);
+  assert.equal(statuses.filter((s) => s === 201).length, 59);
+  const limited = sent.find((r) => r.status === 429);
+  assert.equal(limited.headers.get("retry-after"), "60");
+
+  await db("update connections set revoked_at = now() where client_id = $1", [subs.e.clientId]);
+  assert.equal((await send("/v1/record", subs.token, kept("after"))).status, 401);
+});
+
+test("the record service answers only on its own host", async () => {
+  assert.equal((await localFetch(`${SITE}/api/v1/record`, { method: "POST" })).status, 404);
+  assert.equal((await localFetch(`${API}/dashboard`)).status, 404);
 });
 
 test("the daily job is protected and runs", async () => {

@@ -40,3 +40,7 @@
 .d-btn{align-self:flex-start;text-decoration:none;background:#fff;color:#2c3a52;border-radius:999px;padding:12px 22px;font-weight:600;font-size:14px}
 .d-btn.line{background:transparent;color:#fff;border:1px solid #2c3a52}
 .d-steps{display:flex;gap:10px;flex-wrap:wrap}
+.d-import{border-color:#8a6ca6}
+.d-import-q{margin:0;font-size:18px;font-weight:600;letter-spacing:-.01em;line-height:1.4}
+button.d-btn{border:0;font:inherit;font-weight:600;font-size:14px;cursor:pointer}
+button.d-btn.line{border:1px solid #2c3a52}

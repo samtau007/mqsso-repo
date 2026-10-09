@@ -71,14 +71,13 @@ function configuration(): Configuration {
     rotateRefreshToken: () => true,
     expiresWithSession: async () => false,
 
+    // Grant and RefreshToken have no expiry: see provider() below.
     ttl: {
       AccessToken: 60 * 60,
       AuthorizationCode: 60,
       IdToken: 60 * 60,
       Interaction: 60 * 60,
       Session: 14 * DAY,
-      Grant: 365 * DAY,
-      RefreshToken: 30 * DAY,
     },
 
     cookies: {
@@ -142,6 +141,11 @@ export function provider(): Provider {
   const g = globalThis as Global;
   if (!g.__mqProvider) {
     const p = new Provider(env.idOrigin, configuration());
+    // A connection lasts until the person disconnects or deletes their account (Sami, 9 October
+    // 2026): no yearly reconnecting. node-oidc-provider fills in a default expiry when ttl is
+    // left out, so the two models are told directly that they have none. A refresh token still
+    // ends on use (rotation), on disconnect, and on deletion.
+    for (const Model of [p.Grant, p.RefreshToken]) Object.defineProperty(Model, "expiresIn", { value: () => undefined });
     // Behind Vercel's proxy: trust X-Forwarded-Proto so cookies are marked secure.
     p.proxy = true;
     g.__mqProvider = p;

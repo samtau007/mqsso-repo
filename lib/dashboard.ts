@@ -19,7 +19,9 @@ export type Overview = {
   daysToNewName: number;
   month: { learning: number; practiceDays: number; reflection: number };
   latestRanges: { title: string; low: number; high: number; of: number; from: string; at: Date }[];
-  platforms: { clientId: string; name: string; website: string; scopes: string[]; connectedAt: Date }[];
+  platforms: { clientId: string; name: string; website: string; scopes: string[]; connectedAt: Date; added: number }[];
+  /** History imports waiting for the person to approve or decline. */
+  imports: { id: string; name: string; entries: number }[];
 };
 
 /** The basic dashboard (M2). `siteClientId` is muslimquotient.com itself, which is not listed as a platform. */
@@ -45,12 +47,18 @@ export async function overview(personId: string, siteClientId: string, now: Date
         order by e.title, e.occurred_at desc`,
     );
 
-    const platforms = await c.query<{ client_id: string; name: string | null; website: string | null; scopes: string[]; connected_at: Date }>(
-      `select c.client_id, cl.name, cl.website, c.scopes, c.connected_at
+    const platforms = await c.query<{ client_id: string; name: string | null; website: string | null; scopes: string[]; connected_at: Date; added: string }>(
+      `select c.client_id, cl.name, cl.website, c.scopes, c.connected_at,
+              (select count(*) from entries e where e.client_id = c.client_id) as added
          from connections c left join clients cl on cl.client_id = c.client_id
         where c.revoked_at is null and c.client_id <> $1
         order by c.connected_at`,
       [siteClientId],
+    );
+
+    const imports = await c.query<{ id: string; name: string | null; entry_count: number }>(
+      `select i.id, cl.name, i.entry_count from imports i left join clients cl on cl.client_id = i.client_id
+        where i.status = 'pending' order by i.created_at`,
     );
 
     const days = Math.max(0, Math.ceil((p.name_changes_on.getTime() - now.getTime()) / 86_400_000));
@@ -62,8 +70,9 @@ export async function overview(personId: string, siteClientId: string, now: Date
         title: r.title, low: Number(r.range_low), high: Number(r.range_high), of: Number(r.range_of), from: r.name ?? "a platform", at: r.occurred_at,
       })),
       platforms: platforms.rows.map((r) => ({
-        clientId: r.client_id, name: r.name ?? "A platform", website: r.website ?? "", scopes: r.scopes, connectedAt: r.connected_at,
+        clientId: r.client_id, name: r.name ?? "A platform", website: r.website ?? "", scopes: r.scopes, connectedAt: r.connected_at, added: Number(r.added),
       })),
+      imports: imports.rows.map((r) => ({ id: r.id, name: r.name ?? "A platform", entries: r.entry_count })),
     };
   });
 }

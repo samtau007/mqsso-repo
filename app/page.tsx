@@ -12,7 +12,7 @@ export default function Home() {
           <a href="#how" style={{ textDecoration: "none", color: "#9dadc6" }}>How it works</a>
           <a href="#platforms" style={{ textDecoration: "none", color: "#9dadc6" }}>For platforms</a>
           <a href="/signin" style={{ textDecoration: "none", color: "#ffffff" }}>Sign in</a>
-          <a href="/signup" style={{ textDecoration: "none", color: "#0c121d", background: "#c9b6dc", borderRadius: "999px", padding: "11px 20px", fontWeight: "600" }}>Create your ID</a>
+          <a href="/signup" style={{ textDecoration: "none", color: "#0c121d", background: "#c9b6dc", borderRadius: "999px", padding: "11px 20px", fontWeight: "600" }}>Create your MQ ID</a>
         </nav>
       </header>
     
@@ -25,7 +25,7 @@ export default function Home() {
           <div style={{ flex: "1 1 300px", minWidth: "0", maxWidth: "380px", display: "flex", flexDirection: "column", gap: "22px", paddingBottom: "14px" }}>
             <p style={{ margin: "0", fontSize: "19px", fontWeight: "300", lineHeight: "1.55", color: "#dfe6f0" }}>Muslim Quotient helps you grow as a Muslim. Sign in once on the Qur’an, hadith and learning platforms you already use, set where you are heading, and see your learning, practice and reflection in one private place.</p>
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-              <a href="/signup" style={{ textDecoration: "none", background: "#ffffff", color: "#0c121d", borderRadius: "999px", padding: "16px 26px", fontWeight: "600", fontSize: "16px" }}>Create your Muslim Quotient</a>
+              <a href="/signup" style={{ textDecoration: "none", background: "#ffffff", color: "#0c121d", borderRadius: "999px", padding: "16px 26px", fontWeight: "600", fontSize: "16px" }}>Create your MQ ID</a>
               <a href="#how" style={{ textDecoration: "none", color: "#ffffff", borderRadius: "999px", padding: "16px 8px", fontSize: "15px" }}>How it works →</a>
             </div>
             <span style={{ fontSize: "13px", color: "#9dadc6" }}>Free. Only your email, and you choose which platforms see it.</span>
@@ -92,7 +92,7 @@ export default function Home() {
         <div style={{ display: "flex", flexDirection: "column", gap: "0", marginTop: "28px" }}>
           <div style={{ display: "flex", gap: "32px", alignItems: "baseline", flexWrap: "wrap", padding: "30px 0", borderTop: "1px solid #1f2a3c" }}>
             <span style={{ fontSize: "clamp(64px, 8vw, 120px)", fontWeight: "200", letterSpacing: "-0.06em", lineHeight: "0.8", color: "#3a4c6b", width: "160px" }}>01</span>
-            <div style={{ flex: "1 1 360px", minWidth: "0", maxWidth: "560px", display: "flex", flexDirection: "column", gap: "8px" }}><span style={{ fontSize: "28px", fontWeight: "700", letterSpacing: "-0.03em" }}>Create your ID with your email.</span><span style={{ fontSize: "16px", color: "#9dadc6" }}>Enter the 6-digit code and add a passkey. No name, phone or birth date.</span></div>
+            <div style={{ flex: "1 1 360px", minWidth: "0", maxWidth: "560px", display: "flex", flexDirection: "column", gap: "8px" }}><span style={{ fontSize: "28px", fontWeight: "700", letterSpacing: "-0.03em" }}>Create your MQ ID with your email.</span><span style={{ fontSize: "16px", color: "#9dadc6" }}>Enter the 6-digit code and add a passkey. No name, phone or birth date.</span></div>
           </div>
           <div style={{ display: "flex", gap: "32px", alignItems: "baseline", flexWrap: "wrap", padding: "30px 0 30px 12%", borderTop: "1px solid #1f2a3c" }}>
             <span style={{ fontSize: "clamp(64px, 8vw, 120px)", fontWeight: "200", letterSpacing: "-0.06em", lineHeight: "0.8", color: "#3a4c6b", width: "160px" }}>02</span>
@@ -162,7 +162,7 @@ export default function Home() {
       <section style={{ maxWidth: "1320px", margin: "0 auto", paddingInline: "32px", paddingBlock: "40px 100px" }}>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: "32px", justifyContent: "space-between" }}>
           <h2 style={{ margin: "0", fontSize: "clamp(52px, 8.6vw, 136px)", fontWeight: "800", letterSpacing: "-0.06em", lineHeight: "0.86" }}>Start with<br /><span style={{ color: "#c9b6dc" }}>one private ID.</span></h2>
-          <a href="/signup" style={{ textDecoration: "none", background: "#ffffff", color: "#0c121d", borderRadius: "999px", padding: "20px 34px", fontWeight: "600", fontSize: "17px", marginBottom: "14px" }}>Create your Muslim Quotient</a>
+          <a href="/signup" style={{ textDecoration: "none", background: "#ffffff", color: "#0c121d", borderRadius: "999px", padding: "20px 34px", fontWeight: "600", fontSize: "17px", marginBottom: "14px" }}>Create your MQ ID</a>
         </div>
       </section>
     

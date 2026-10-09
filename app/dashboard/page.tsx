@@ -4,6 +4,7 @@ import { overview } from "@/lib/dashboard";
 import { siteClient } from "@/lib/site/oidc";
 import { currentPersonId } from "@/lib/site/session";
 import { SCOPES } from "@/lib/scopes";
+import { decide } from "./actions";
 import "./dashboard.css";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +45,18 @@ export default async function Dashboard() {
       </header>
 
       <main className="d-body">
+        {o.imports.map((i) => (
+          <section className="d-card d-import" key={i.id} aria-label={`Past activity from ${i.name}`}>
+            <span className="d-label">Past activity</span>
+            <p className="d-import-q">{i.name} wants to add {i.entries} past {i.entries === 1 ? "entry" : "entries"} to your record.</p>
+            <p className="d-muted">They keep their original dates. You can add them all or none.</p>
+            <form action={decide} className="d-steps">
+              <input type="hidden" name="import" value={i.id} />
+              <button className="d-btn" name="choice" value="approve" type="submit">Add them</button>
+              <button className="d-btn line" name="choice" value="decline" type="submit">Not now</button>
+            </form>
+          </section>
+        ))}
         <div className="d-row">
           <section className="d-card" style={{ flex: "1 1 340px" }}>
             <span className="d-label">Your range</span>
@@ -86,7 +99,7 @@ export default async function Dashboard() {
           {o.platforms.map((p) => (
             <div className="d-plat" key={p.clientId}>
               <span className="d-tile" aria-hidden="true">{Array.from(p.name)[0]?.toUpperCase()}</span>
-              <div><span>{p.name}</span><span>{adds(p.scopes)}</span></div>
+              <div><span>{p.name}</span><span>{adds(p.scopes)}{p.added ? ` · ${p.added} ${p.added === 1 ? "entry" : "entries"} added` : ""}</span></div>
               <span className="d-tag">Connected</span>
             </div>
           ))}

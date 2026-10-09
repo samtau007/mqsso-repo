@@ -181,10 +181,10 @@ Only ranges are sent. Single scores, individual answers and Ghaflah findings sta
 
 **Record service**
 
-- [ ] `POST /v1/record` and `POST /v1/record/import`, as in the developer guide
-- [ ] Rejects entries for parts the person has not allowed, any Reflection entry without a range, and unknown actions
-- [ ] De-duplicates by `key`
-- [ ] `GET /v1/settings` for prayer settings and language
+- [x] `POST /v1/record` and `POST /v1/record/import`, as in the developer guide
+- [x] Rejects entries for parts the person has not allowed, any Reflection entry without a range, and unknown actions
+- [x] De-duplicates by `key`
+- [x] `GET /v1/settings` for prayer settings and language
 
 **Dashboard**
 
