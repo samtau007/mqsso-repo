@@ -29,7 +29,7 @@ describe("notice delivery", () => {
 
   it("goes only to public https addresses", () => {
     expect(deliverable("https://platform.example/api/mq/notices")).toBe(true);
-    for (const a of ["http://platform.example/n", "https://localhost/n", "https://127.0.0.1/n", "https://10.0.0.5/n", "https://192.168.1.2/n", "https://169.254.169.254/latest", "https://[::1]/n", "not a url"]) {
+    for (const a of ["http://platform.example/n", "https://localhost/n", "https://id.mq.localhost/n", "https://127.0.0.1/n", "https://10.0.0.5/n", "https://192.168.1.2/n", "https://169.254.169.254/latest", "https://[::1]/n", "not a url"]) {
       expect(deliverable(a), a).toBe(false);
     }
     process.env.MQ_ALLOW_LOCAL_NOTICES = "1";

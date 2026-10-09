@@ -1,7 +1,15 @@
 "use server";
 
+import type { RegistrationResponseJSON } from "@simplewebauthn/server";
 import { revalidatePath } from "next/cache";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { codeErrorMessage, issueCode, verifyCode } from "@/lib/codes";
+import { decrypt, encrypt, token } from "@/lib/crypto";
+import { env } from "@/lib/env";
+import { mergeAccounts, mergePreview, personByEmail } from "@/lib/merge";
+import { finishRegistration, registrationOptions, removePasskey } from "@/lib/passkeys";
+import { makeRecoveryCodes } from "@/lib/recovery";
 import {
   addGoal, deleteAccount, disconnectPlatform, GoalError, saveSettings, setEmailChoice, setGoalStatus,
   SettingsError, withdrawPermissions,
@@ -103,4 +111,101 @@ export async function deleteEverything(_prev: FormState, form: FormData): Promis
   await deleteAccount(personId, siteClient().clientId);
   endSession();
   redirect("/?deleted=1");
+}
+
+// Signing in: passkeys and recovery codes ------------------------------------------------------
+
+export async function passkeyOptions() {
+  const personId = await me();
+  return registrationOptions(`dash:${personId}`, personId);
+}
+
+export async function passkeyFinish(response: RegistrationResponseJSON): Promise<{ ok: boolean }> {
+  const personId = await me();
+  const who = await finishRegistration(`dash:${personId}`, response, headers().get("user-agent") ?? undefined);
+  revalidatePath("/dashboard/privacy");
+  return { ok: who === personId };
+}
+
+export async function removeKey(form: FormData) {
+  const personId = await me();
+  await removePasskey(personId, id(form, "passkey").slice(0, 600));
+  revalidatePath("/dashboard/privacy");
+}
+
+export async function makeCodes(): Promise<string[]> {
+  const personId = await me();
+  const codes = await makeRecoveryCodes(personId);
+  revalidatePath("/dashboard/privacy");
+  return codes;
+}
+
+// Merging another account into this one ---------------------------------------------------------
+
+const MERGE = "mq_merge";
+type MergeFlow = { flow: string; other?: string; exp: number };
+
+function readMerge(): MergeFlow | null {
+  const raw = cookies().get(MERGE)?.value;
+  if (!raw) return null;
+  try {
+    const m = JSON.parse(decrypt(raw, env.sessionKey)) as MergeFlow;
+    return m.exp > Date.now() ? m : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeMerge(m: Omit<MergeFlow, "exp">) {
+  cookies().set(MERGE, encrypt(JSON.stringify({ ...m, exp: Date.now() + 10 * 60_000 }), env.sessionKey), {
+    httpOnly: true, sameSite: "lax", secure: env.siteOrigin.startsWith("https:"), path: "/dashboard", maxAge: 600,
+  });
+}
+
+export type MergeState = {
+  step: "email" | "code" | "confirm";
+  email?: string;
+  error?: string;
+  preview?: { givenName: string; platforms: number; entries: number; goals: number };
+};
+
+/** One form, three steps: the other account's email, its code, then confirm. */
+export async function mergeStep(prev: MergeState, form: FormData): Promise<MergeState> {
+  const personId = await me();
+
+  if (prev.step === "email") {
+    const email = String(form.get("email") ?? "").trim();
+    if ((await personByEmail(email)) === personId) return { step: "email", email, error: "That is the email of this account. Enter the other one." };
+    const flow = token(16);
+    try {
+      await issueCode("merge", flow, email);
+    } catch (e) {
+      return { step: "email", email, error: codeErrorMessage(e) };
+    }
+    writeMerge({ flow });
+    return { step: "code", email };
+  }
+
+  const m = readMerge();
+  if (!m) return { step: "email", error: "That took too long. Start again." };
+
+  if (prev.step === "code") {
+    let email: string;
+    try {
+      email = await verifyCode("merge", m.flow, String(form.get("code") ?? "").replace(/\D/g, ""));
+    } catch (e) {
+      return { ...prev, error: codeErrorMessage(e) };
+    }
+    const other = await personByEmail(email);
+    if (!other) return { step: "email", error: "No Muslim Quotient account uses that email. There is nothing to merge." };
+    if (other === personId) return { step: "email", error: "That is this account." };
+    writeMerge({ flow: m.flow, other });
+    return { step: "confirm", email, preview: (await mergePreview(other)) ?? undefined };
+  }
+
+  if (!m.other) return { step: "email", error: "That took too long. Start again." };
+  await mergeAccounts(personId, m.other);
+  cookies().delete({ name: MERGE, path: "/dashboard" });
+  revalidatePath("/dashboard", "layout");
+  redirect("/dashboard?merged=1");
 }

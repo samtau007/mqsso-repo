@@ -65,9 +65,9 @@ function parseUrl(s: string): URL | undefined {
   }
 }
 
-/** https everywhere, except http on this machine while developing. */
+/** https everywhere, except http on this machine while developing (*.localhost is always this machine). */
 function secureEnough(u: URL): boolean {
-  return u.protocol === "https:" || (u.protocol === "http:" && LOCAL.has(u.hostname));
+  return u.protocol === "https:" || (u.protocol === "http:" && (LOCAL.has(u.hostname) || u.hostname.endsWith(".localhost")));
 }
 
 export function validatePlatform(input: PlatformInput): string[] {

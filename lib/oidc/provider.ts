@@ -1,5 +1,5 @@
 import Provider, { type Configuration, type KoaContextWithOIDC } from "oidc-provider";
-import { getConnection, pairwiseSub } from "../connections";
+import { getConnection, subFor } from "../connections";
 import { env } from "../env";
 import { getPerson, realEmail } from "../people";
 import { SCOPE_NAMES } from "../scopes";
@@ -61,7 +61,28 @@ function configuration(): Configuration {
     subjectTypes: ["pairwise"],
     extraClientMetadata: { properties: ["mq_sector_group"] },
     async pairwiseIdentifier(_ctx, accountId, client) {
-      return pairwiseSub(sectorGroupOf(client), accountId);
+      return subFor(accountId, client.clientId, sectorGroupOf(client));
+    },
+
+    /**
+     * What the person already allowed a platform is kept in connections, so signing in on a new
+     * device does not ask again. The permission screen shows only when the platform asks for
+     * something the person has not allowed it.
+     */
+    async loadExistingGrant(ctx) {
+      const p = ctx.oidc.provider;
+      const clientId = ctx.oidc.client!.clientId;
+      const grantId = ctx.oidc.result?.consent?.grantId || ctx.oidc.session!.grantIdFor(clientId);
+      if (grantId) return p.Grant.find(grantId);
+      const accountId = ctx.oidc.session!.accountId;
+      if (!accountId) return undefined;
+      const conn = await getConnection(accountId, clientId);
+      if (!conn) return undefined;
+      const grant = new p.Grant({ accountId, clientId });
+      grant.addOIDCScope(conn.scopes.join(" "));
+      await grant.save();
+      ctx.oidc.session!.grantIdFor(clientId, grant.jti);
+      return grant;
     },
 
     // Every client that may use refresh tokens gets one, and it is replaced on every use.

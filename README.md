@@ -30,7 +30,7 @@ npm run migrate            # needs DATABASE_URL
 npm run dev
 ```
 
-Open `http://developers.localhost:3000`. Login codes are printed in the server log when `RESEND_API_KEY` is empty. Put your own email in `MQ_PORTAL_ADMINS` to approve platforms.
+Open `http://developers.mq.localhost:3000`. Login codes are printed in the server log when `RESEND_API_KEY` is empty. Put your own email in `MQ_PORTAL_ADMINS` to approve platforms.
 
 ## Test
 

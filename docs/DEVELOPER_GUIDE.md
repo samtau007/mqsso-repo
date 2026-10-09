@@ -1,6 +1,6 @@
 # Muslim Quotient Developer Guide
 
-Version 1.4 · 9 October 2026 · draft for early partners. Addresses marked as examples will be confirmed before launch. Changes are listed at the end.
+Version 1.5 · 9 October 2026 · draft for early partners. Addresses marked as examples will be confirmed before launch. Changes are listed at the end.
 
 Add "Sign in with Muslim Quotient" to your platform using standard OpenID Connect, then bring your existing users across without losing their accounts or their history.
 
@@ -49,7 +49,7 @@ grant_type=authorization_code&code=CODE&redirect_uri=...&client_id=...&client_se
 
 You may send the secret in the body, as above, or as HTTP Basic authentication; both work. Without a server, send no secret.
 
-5. **Read the person's ID** from the `sub` value in the ID token. Store it against your user. That is the only identifier you will ever receive for this person.
+5. **Read the person's ID** from the `sub` value in the ID token. Store it against your user. That is the only identifier you will ever receive for this person. It stays the same for as long as the person is connected: on a new device, after they add a passkey, and even if they later merge two Muslim Quotient accounts into one.
 
    The token response also carries a `refresh_token`. Every time you use it you receive a new one, and the one you used stops working, so always keep the newest. Access tokens last one hour. Refresh tokens do not expire with time: a connection lasts until the person disconnects or deletes their account, so the person never has to connect again. Using a refresh token that was already used ends the connection, as a safeguard.
 
@@ -301,6 +301,7 @@ Send the checklist from the developer portal. Review takes up to 10 working days
 
 ## Changes
 
+- **1.5 · 9 October 2026.** The `sub` you hold never changes while the person stays connected, including after they merge two Muslim Quotient accounts. A person who already allowed your platform is not asked again when they sign in on a new device; the permission screen shows only for something new. People can sign in with a passkey or a recovery code; nothing changes for your platform.
 - **1.4 · 9 October 2026.** Notices are specified: the body, the `MQ-Signature` format with a verification example, the 5-minute window, `MQ-Notice-Id`, retries for 30 days, and `notice.test` from the portal.
 - **1.3 · 9 October 2026.** Connections do not expire: refresh tokens last until used, and the connection until the person disconnects or deletes their account.
 - **1.2 · 9 October 2026.** The record service is live. Added: the import reply (`202`, held until the person approves) and that a second import is refused; the full list of errors; a repeated `key` returns `200`; a range must have `low` below `high`; fields outside an entry's part are refused; entries must come from a server; settings return only allowed parts, with `null` for parts not set.
