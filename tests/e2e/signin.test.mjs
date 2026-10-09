@@ -9,7 +9,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { createHmac, generateKeyPairSync, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, generateKeyPairSync, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
@@ -117,6 +117,9 @@ async function latestCode(to) {
   throw new Error(`no email to ${to}`);
 }
 
+/** Resend's webhook secret for these tests, in Resend's own form. */
+const RELAY_SECRET = `whsec_${Buffer.from("relay-secret-for-tests-32-bytes!").toString("base64")}`;
+
 /** Starts the built app. The same secrets every time, so restarts keep working with the data. */
 async function startServer(extra = {}) {
   server = spawn(process.execPath, [path.join(ROOT, "node_modules", "next", "dist", "bin", "next"), "start", "-p", String(PORT)], {
@@ -126,13 +129,13 @@ async function startServer(extra = {}) {
       ...process.env, ...SECRETS,
       DATABASE_URL: DB,
       MQ_ID_ORIGIN: ID, MQ_DEVELOPERS_ORIGIN: DEV, MQ_API_ORIGIN: API, MQ_SITE_ORIGIN: SITE,
-      MQ_MAIL_OUTBOX: OUTBOX, MQ_PORTAL_ADMINS: ADMIN, RESEND_API_KEY: "",
+      MQ_MAIL_OUTBOX: OUTBOX, MQ_PORTAL_ADMINS: ADMIN,
       // Notices go to the test platforms' servers on this machine.
       MQ_ALLOW_LOCAL_NOTICES: "1",
       // Passkeys: one relying party for every test host, as muslimquotient.com is in production.
       MQ_RP_ID: "mq.localhost",
-      // The relay talks to a stand-in for Postmark on this machine.
-      POSTMARK_SERVER_TOKEN: "test-postmark", POSTMARK_API_BASE: "http://127.0.0.1:3110", MQ_RELAY_INBOUND_SECRET: "relay-secret",
+      // The relay talks to a stand-in for Resend on this machine. Codes still go to the outbox.
+      RESEND_API_KEY: "test-resend", RESEND_API_BASE: "http://127.0.0.1:3110", RESEND_RELAY_WEBHOOK_SECRET: RELAY_SECRET,
       ...extra,
     },
     stdio: ["ignore", "inherit", "inherit"],
@@ -1023,60 +1026,92 @@ test("test mode: only testers sign in, test entries stay out of the picture, and
 
 // Email relay and status -------------------------------------------------------------------------
 
-test("the relay forwards mail to the person's real inbox, untracked, until they switch it off", async () => {
-  const sent = [];
-  const postmark = http.createServer((req, res) => {
+/** A stand-in for Resend: holds received messages to be fetched, and records what is sent. */
+const resendStandIn = { received: new Map(), sent: [], server: null };
+async function startResend() {
+  if (resendStandIn.server) return resendStandIn;
+  resendStandIn.server = http.createServer((req, res) => {
     let raw = "";
     req.on("data", (c) => (raw += c));
     req.on("end", () => {
-      sent.push({ url: req.url, token: req.headers["x-postmark-server-token"], body: JSON.parse(raw) });
       res.setHeader("content-type", "application/json");
-      res.end(JSON.stringify({ ErrorCode: 0, Message: "OK" }));
+      if (req.headers.authorization !== "Bearer test-resend") return res.writeHead(401).end("{}");
+      const got = /^\/emails\/receiving\/([^/]+)$/.exec(req.url);
+      if (req.method === "GET" && got) {
+        const m = resendStandIn.received.get(got[1]);
+        return m ? res.end(JSON.stringify(m)) : res.writeHead(404).end("{}");
+      }
+      if (req.method === "POST" && req.url === "/emails") {
+        resendStandIn.sent.push(JSON.parse(raw));
+        return res.end(JSON.stringify({ id: randomUUID() }));
+      }
+      res.writeHead(404).end("{}");
     });
   });
-  callbackServers.push(postmark);
-  await new Promise((r) => postmark.listen(3110, r));
+  callbackServers.push(resendStandIn.server);
+  await new Promise((r) => resendStandIn.server.listen(3110, r));
+  return resendStandIn;
+}
+
+/** Resend tells us a message arrived: an email.received webhook, signed the Svix way. */
+function receive(message, { secret = RELAY_SECRET, at = Math.floor(Date.now() / 1000) } = {}) {
+  const emailId = randomUUID();
+  resendStandIn.received.set(emailId, { id: emailId, ...message });
+  const body = JSON.stringify({ type: "email.received", created_at: new Date().toISOString(), data: { email_id: emailId, from: message.from, to: message.to, cc: [], subject: message.subject, attachments: [] } });
+  const id = `msg_${randomUUID()}`;
+  const sig = createHmac("sha256", Buffer.from(secret.slice(6), "base64")).update(`${id}.${at}.${body}`).digest("base64");
+  return localFetch(`${SITE}/api/relay/inbound`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "svix-id": id, "svix-timestamp": String(at), "svix-signature": `v1,${sig}` },
+    body,
+  });
+}
+
+test("the relay forwards mail to the person's real inbox, untracked, until they switch it off", async () => {
+  const { sent } = await startResend();
 
   const [{ relay_address: relay }] = await db(
     "select c.relay_address from connections c where c.client_id = $1 and c.sub = $2",
     [subs.a.clientId, subs.subA],
   );
   assert.match(relay, /@relay\.muslimquotient\.com$/);
-  const inbound = (auth) => localFetch(`${SITE}/api/relay/inbound`, {
-    method: "POST",
-    headers: { "content-type": "application/json", ...(auth ? { authorization: auth } : {}) },
-    body: JSON.stringify({
-      FromFull: { Email: "hello@halaqa.example", Name: "Halaqa Notes" },
-      ToFull: [{ Email: relay.toUpperCase() }],
-      OriginalRecipient: relay,
-      Subject: "Your Friday halaqa",
-      TextBody: "See you at 7.",
-      Headers: [{ Name: "X-Spam-Status", Value: "No" }],
-    }),
-  });
-  const basic = `Basic ${Buffer.from("relay:relay-secret").toString("base64")}`;
+  const message = {
+    from: "Halaqa Notes <hello@halaqa.example>",
+    to: [relay.toUpperCase()],
+    subject: "Your Friday halaqa",
+    text: "See you at 7.",
+    html: null,
+    headers: { "X-Spam-Status": "No" },
+  };
+  const inbound = () => receive(message);
 
-  assert.equal((await inbound(null)).status, 401);
-  assert.equal((await inbound(`Basic ${Buffer.from("relay:wrong").toString("base64")}`)).status, 401);
+  // Unsigned, wrongly signed, or stale: refused.
+  const unsigned = await localFetch(`${SITE}/api/relay/inbound`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+  assert.equal(unsigned.status, 401);
+  assert.equal((await receive(message, { secret: `whsec_${Buffer.from("not-the-secret").toString("base64")}` })).status, 401);
+  assert.equal((await receive(message, { at: Math.floor(Date.now() / 1000) - 600 })).status, 401);
+  assert.equal(sent.length, 0);
 
-  const r = await inbound(basic);
+  const r = await inbound();
   assert.equal(r.status, 200);
   assert.deepEqual((await r.json()).outcomes, [{ address: relay, result: "forwarded" }]);
   assert.equal(sent.length, 1);
-  assert.equal(sent[0].url, "/email");
-  assert.equal(sent[0].token, "test-postmark");
-  assert.equal(sent[0].body.To, PERSON, "to the real inbox");
-  assert.equal(sent[0].body.ReplyTo, "hello@halaqa.example");
-  assert.equal(sent[0].body.Subject, "Your Friday halaqa");
-  assert.equal(sent[0].body.TrackOpens, false);
-  assert.equal(sent[0].body.TrackLinks, "None");
-  assert.match(sent[0].body.From, /^"Halaqa Notes via Muslim Quotient" </);
+  assert.deepEqual(sent[0].to, [PERSON], "to the real inbox");
+  assert.deepEqual(sent[0].reply_to, ["hello@halaqa.example"]);
+  assert.equal(sent[0].subject, "Your Friday halaqa");
+  assert.equal(sent[0].text, "See you at 7.");
+  assert.match(sent[0].from, /^"Halaqa Notes via Muslim Quotient" <relay@relay\.muslimquotient\.com>$/);
+
+  // Marked as spam on arrival: dropped.
+  const spam = await receive({ ...message, headers: { "X-Spam-Status": "Yes, score=9" } });
+  assert.deepEqual((await spam.json()).outcomes, [{ address: relay, result: "dropped", reason: "spam" }]);
+  assert.equal(sent.length, 1);
 
   // The person switches that relay off: mail to it is dropped.
   await page.goto(`${SITE}/dashboard/privacy`);
   await page.click(".d-row-line:has-text('Halaqa Notes') button:has-text('Off')");
   await page.waitForSelector(".d-row-line:has-text('Halaqa Notes') button.on:has-text('Off')");
-  const off = await inbound(basic);
+  const off = await inbound();
   assert.deepEqual((await off.json()).outcomes, [{ address: relay, result: "dropped", reason: "switched off" }]);
   assert.equal(sent.length, 1, "nothing more was sent");
   await page.click(".d-row-line:has-text('Halaqa Notes') button:has-text('On')");
@@ -1117,14 +1152,13 @@ test("joining with no email: a passkey, recovery codes, and an inbox for platfor
   assert.equal((await db("select count(*)::int as n from email_vault v join connections c on c.person_id = v.person_id where c.sub = $1", [tokens.claims().sub]))[0].n, 0, "no email is held");
 
   // Mail the platform sends to the private address waits in the inbox, sealed.
-  const basic = `Basic ${Buffer.from("relay:relay-secret").toString("base64")}`;
-  const r = await localFetch(`${SITE}/api/relay/inbound`, {
-    method: "POST", headers: { "content-type": "application/json", authorization: basic },
-    body: JSON.stringify({
-      FromFull: { Email: "hello@halaqa.example", Name: "Halaqa Notes" }, ToFull: [{ Email: relay }], OriginalRecipient: relay,
-      Subject: "Welcome to Halaqa Notes", HtmlBody: "<p>Assalamu alaykum.</p><img src='https://tracker.example/pixel.gif'><p>Your first halaqa is on Friday.</p>",
-    }),
+  await startResend();
+  const sentBefore = resendStandIn.sent.length;
+  const r = await receive({
+    from: "Halaqa Notes <hello@halaqa.example>", to: [relay], subject: "Welcome to Halaqa Notes", text: null,
+    html: "<p>Assalamu alaykum.</p><img src='https://pixel.example/p.gif'><p>Your first halaqa is on Friday.</p>",
   });
+  assert.equal(resendStandIn.sent.length, sentBefore, "nothing is sent on");
   assert.deepEqual((await r.json()).outcomes, [{ address: relay, result: "kept" }]);
   const [{ sealed }] = await db("select sealed from inbox_messages order by received_at desc limit 1");
   assert.ok(!sealed.includes("Welcome"), "stored only encrypted");

@@ -42,6 +42,8 @@ export const env = {
 
   /** Login code email. Without a key, codes are written to the server log (development only). */
   get resendApiKey() { return process.env.RESEND_API_KEY || ""; },
+  /** Resend's API address. Tests point it at a stand-in on the same machine. */
+  get resendApiBase() { return (process.env.RESEND_API_BASE || "https://api.resend.com").replace(/\/$/, ""); },
   get mailFrom() { return process.env.MQ_MAIL_FROM || "Muslim Quotient <codes@id.muslimquotient.com>"; },
   /** Test runs only: a directory where each outgoing email is written as a JSON file. */
   get mailOutbox() { return process.env.MQ_MAIL_OUTBOX || ""; },

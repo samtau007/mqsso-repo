@@ -21,7 +21,7 @@ export async function sendMail(m: Mail): Promise<void> {
     console.log(`[mail] to ${m.to}: ${m.subject}\n${m.text}`);
     return;
   }
-  const r = await fetch("https://api.resend.com/emails", {
+  const r = await fetch(`${env.resendApiBase}/emails`, {
     method: "POST",
     headers: { authorization: `Bearer ${env.resendApiKey}`, "content-type": "application/json" },
     body: JSON.stringify({ from: env.mailFrom, to: [m.to], subject: m.subject, text: m.text }),

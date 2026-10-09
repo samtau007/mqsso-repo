@@ -76,7 +76,7 @@ Add these domains to the Vercel project. Vercel shows the exact DNS record for e
 ### Email
 
 - Login codes: add the sending domain in Resend and create the SPF, DKIM and return-path records it shows. Turn open and click tracking off for that domain. Set `RESEND_API_KEY` and `MQ_MAIL_FROM`.
-- Relay (M6): `relay.muslimquotient.com` gets an `MX` record pointing to Postmark inbound.
+- Relay (M6): add `relay.muslimquotient.com` as a domain in Resend with receiving switched on and open and click tracking off. Add the `MX`, SPF and DKIM records Resend shows in Cloudflare (DNS only). Create a Resend webhook for `email.received` to `https://www.muslimquotient.com/api/relay/inbound` and set its signing secret as `RESEND_RELAY_WEBHOOK_SECRET`.
 
 ### Environment variables (Vercel)
 

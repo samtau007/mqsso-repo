@@ -1,38 +1,63 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { audit } from "./audit";
 import { decrypt } from "./crypto";
 import { one, query } from "./db";
 import { env } from "./env";
 import { keepInInbox, plainText } from "./inbox";
 
-// The email relay. A platform writes to a person's relay address (abc@relay.muslimquotient.com);
-// Postmark receives it and posts it here; we forward it to the person's real inbox through
-// Postmark. Nothing about the message is stored: only that one was forwarded or dropped.
+// The email relay, on Resend. A platform writes to a person's relay address
+// (abc@relay.muslimquotient.com); Resend receives it and tells us with a signed email.received
+// webhook; we fetch the message from Resend and send it on to the person's real inbox through
+// Resend. Nothing about the message is stored: only that one was forwarded, kept or dropped.
+// People who joined with no email get it in their Muslim Quotient inbox instead.
 
 export function relayEnabled(): boolean {
-  return Boolean(process.env.POSTMARK_SERVER_TOKEN && process.env.MQ_RELAY_INBOUND_SECRET);
+  return Boolean(env.resendApiKey && process.env.RESEND_RELAY_WEBHOOK_SECRET);
 }
 
-/** Postmark calls the inbound address with HTTP Basic credentials we set: relay:<secret>. */
-export function inboundAuthorised(header: string | null): boolean {
-  const expected = Buffer.from(`Basic ${Buffer.from(`relay:${process.env.MQ_RELAY_INBOUND_SECRET ?? ""}`).toString("base64")}`);
-  const given = Buffer.from(header ?? "");
-  return !!process.env.MQ_RELAY_INBOUND_SECRET && expected.length === given.length && timingSafeEqual(expected, given);
+const TOLERANCE_SECONDS = 300;
+
+/**
+ * Resend signs webhooks the Svix way: HMAC-SHA256 over `id.timestamp.body` with the
+ * base64 key after "whsec_", sent as one or more "v1,<base64>" in svix-signature.
+ */
+export function webhookVerified(headers: Headers, body: string, now = Date.now()): boolean {
+  const secret = process.env.RESEND_RELAY_WEBHOOK_SECRET ?? "";
+  const id = headers.get("svix-id");
+  const timestamp = headers.get("svix-timestamp");
+  const signatures = headers.get("svix-signature");
+  if (!secret || !id || !timestamp || !signatures || !/^\d+$/.test(timestamp)) return false;
+  if (Math.abs(now / 1000 - Number(timestamp)) > TOLERANCE_SECONDS) return false;
+  const key = Buffer.from(secret.replace(/^whsec_/, ""), "base64");
+  const expected = createHmac("sha256", key).update(`${id}.${timestamp}.${body}`).digest();
+  return signatures.split(" ").some((s) => {
+    const [version, sig] = s.split(",");
+    const given = Buffer.from(sig ?? "", "base64");
+    return version === "v1" && given.length === expected.length && timingSafeEqual(given, expected);
+  });
 }
 
-export type Inbound = {
-  FromFull?: { Email?: string; Name?: string };
-  ToFull?: { Email?: string }[];
-  CcFull?: { Email?: string }[];
-  OriginalRecipient?: string;
-  Subject?: string;
-  TextBody?: string;
-  HtmlBody?: string;
-  Headers?: { Name?: string; Value?: string }[];
-  Attachments?: { Name?: string; Content?: string; ContentType?: string; ContentLength?: number }[];
+/** The email.received webhook carries only who and what; the message itself is fetched. */
+export type Webhook = { type?: string; data?: { email_id?: string; to?: string[]; cc?: string[]; bcc?: string[] } };
+
+type Received = {
+  from?: string;
+  to?: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject?: string;
+  text?: string | null;
+  html?: string | null;
+  headers?: Record<string, string> | { name?: string; value?: string }[];
 };
 
-const MAX_ATTACHMENTS_BYTES = 10 * 1024 * 1024;
+async function resend(path: string, init: RequestInit = {}) {
+  return fetch(`${env.resendApiBase}${path}`, {
+    ...init,
+    headers: { authorization: `Bearer ${env.resendApiKey}`, accept: "application/json", "content-type": "application/json", ...init.headers },
+    signal: AbortSignal.timeout(15_000),
+  }).catch(() => null);
+}
 
 type Target = { personId: string; clientId: string; platform: string; relayOff: boolean; emailEnc: string | null };
 
@@ -47,18 +72,37 @@ async function target(address: string): Promise<Target | null> {
   return r ? { personId: r.person_id, clientId: r.client_id, platform: r.name, relayOff: r.relay_off, emailEnc: r.email_ciphertext } : null;
 }
 
-const isSpam = (m: Inbound) => (m.Headers ?? []).some((h) => h.Name?.toLowerCase() === "x-spam-status" && /^yes/i.test(h.Value ?? ""));
+/** "Halaqa Notes <hello@halaqa.example>" into its name and address. */
+export function parseAddress(raw: string | undefined): { name: string; email: string } {
+  const m = /^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/.exec(raw ?? "");
+  return m ? { name: m[1].trim(), email: m[2].trim() } : { name: "", email: (raw ?? "").trim() };
+}
+
+function header(m: Received, name: string): string | undefined {
+  const h = m.headers;
+  if (!h) return undefined;
+  if (Array.isArray(h)) return h.find((x) => x.name?.toLowerCase() === name)?.value;
+  return Object.entries(h).find(([k]) => k.toLowerCase() === name)?.[1];
+}
+
+const isSpam = (m: Received) => /^yes/i.test(header(m, "x-spam-status") ?? "");
 
 export type Outcome = { address: string; result: "forwarded" | "kept" | "dropped" | "unknown" | "failed"; reason?: string };
 
-/** Forwards one inbound message to every relay address it was sent to. */
-export async function relayInbound(m: Inbound): Promise<Outcome[]> {
+/** Handles one email.received webhook: every relay address the message was sent to. */
+export async function relayInbound(hook: Webhook): Promise<Outcome[] | null> {
+  if (hook.type !== "email.received" || !hook.data?.email_id) return [];
+  const res = await resend(`/emails/receiving/${encodeURIComponent(hook.data.email_id)}`);
+  if (!res?.ok) return null;
+  const m = (await res.json()) as Received;
+
   const domain = `@${env.relayDomain}`.toLowerCase();
   const addresses = [...new Set(
-    [m.OriginalRecipient, ...(m.ToFull ?? []).map((t) => t.Email), ...(m.CcFull ?? []).map((t) => t.Email)]
-      .filter((a): a is string => !!a && a.toLowerCase().endsWith(domain))
-      .map((a) => a.toLowerCase()),
+    [hook.data.to, hook.data.cc, hook.data.bcc, m.to, m.cc, m.bcc].flat()
+      .map((a) => parseAddress(a ?? undefined).email.toLowerCase())
+      .filter((a) => a.endsWith(domain)),
   )];
+  const from = parseAddress(m.from);
   const out: Outcome[] = [];
   for (const address of addresses) {
     const t = await target(address);
@@ -75,53 +119,41 @@ export async function relayInbound(m: Inbound): Promise<Outcome[]> {
     if (!t.emailEnc) {
       // Joined with no email: the message waits in their Muslim Quotient inbox instead.
       await keepInInbox(t.personId, t.clientId, {
-        from: m.FromFull?.Name || m.FromFull?.Email || t.platform,
-        fromEmail: m.FromFull?.Email ?? null,
-        subject: m.Subject || "(no subject)",
-        text: m.TextBody || (m.HtmlBody ? plainText(m.HtmlBody) : ""),
+        from: from.name || from.email || t.platform,
+        fromEmail: from.email || null,
+        subject: m.subject || "(no subject)",
+        text: m.text || (m.html ? plainText(m.html) : ""),
       });
       await audit({ actor: "relay", action: "relay.kept", personId: t.personId, clientId: t.clientId });
       out.push({ address, result: "kept" });
       continue;
     }
-    const ok = await forward(m, t, decrypt(t.emailEnc));
+    const ok = await forward(m, from, t, decrypt(t.emailEnc));
     await audit({ actor: "relay", action: ok ? "relay.forwarded" : "relay.failed", personId: t.personId, clientId: t.clientId });
     out.push({ address, result: ok ? "forwarded" : "failed" });
   }
   return out;
 }
 
-async function forward(m: Inbound, t: Target, to: string): Promise<boolean> {
-  let size = 0;
-  const attachments = (m.Attachments ?? []).filter((a) => {
-    size += a.ContentLength ?? Math.ceil(((a.Content ?? "").length * 3) / 4);
-    return size <= MAX_ATTACHMENTS_BYTES;
-  }).map((a) => ({ Name: a.Name ?? "attachment", Content: a.Content ?? "", ContentType: a.ContentType ?? "application/octet-stream" }));
-
-  const fromName = `${(m.FromFull?.Name || m.FromFull?.Email || t.platform).replace(/["<>]/g, "")} via Muslim Quotient`;
-  const res = await fetch(`${process.env.POSTMARK_API_BASE || "https://api.postmarkapp.com"}/email`, {
+/**
+ * Sends the message on. Text and HTML only: attachments are not forwarded. Open and click
+ * tracking stay off because the sending domain has them switched off in Resend (CLAUDE.md:
+ * no open or click tracking in email, ever).
+ */
+async function forward(m: Received, from: { name: string; email: string }, t: Target, to: string): Promise<boolean> {
+  const fromName = `${(from.name || from.email || t.platform).replace(/["<>]/g, "")} via Muslim Quotient`;
+  const res = await resend("/emails", {
     method: "POST",
-    headers: {
-      accept: "application/json",
-      "content-type": "application/json",
-      "x-postmark-server-token": process.env.POSTMARK_SERVER_TOKEN!,
-    },
     body: JSON.stringify({
-      From: `"${fromName}" <${process.env.MQ_RELAY_FROM || `relay@${env.relayDomain}`}>`,
-      To: to,
-      ReplyTo: m.FromFull?.Email || undefined,
-      Subject: m.Subject || `(no subject) from ${t.platform}`,
-      TextBody: m.TextBody || undefined,
-      HtmlBody: m.HtmlBody || undefined,
-      Attachments: attachments.length ? attachments : undefined,
-      // CLAUDE.md: no open or click tracking in email, ever.
-      TrackOpens: false,
-      TrackLinks: "None",
-      MessageStream: process.env.POSTMARK_STREAM || "outbound",
-      Headers: [{ Name: "X-MQ-Relay-For", Value: t.platform }],
+      from: `"${fromName}" <${process.env.MQ_RELAY_FROM || `relay@${env.relayDomain}`}>`,
+      to: [to],
+      reply_to: from.email ? [from.email] : undefined,
+      subject: m.subject || `(no subject) from ${t.platform}`,
+      text: m.text || (m.html ? plainText(m.html) : ""),
+      html: m.html || undefined,
+      headers: { "X-MQ-Relay-For": t.platform },
     }),
-    signal: AbortSignal.timeout(15_000),
-  }).catch(() => null);
+  });
   return !!res?.ok;
 }
 

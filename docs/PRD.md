@@ -2,7 +2,7 @@
 
 8 October 2026 · Sami (TrueQ Technologies)
 
-Changes: 8 October 2026, decisions 2 to 4 settled (no questions on Muslim Quotient; Postmark for the relay; Mohasaba keeps Continue with Google for now).
+Changes: 8 October 2026, decisions 2 to 4 settled (no questions on Muslim Quotient; Postmark for the relay; Mohasaba keeps Continue with Google for now). 9 October 2026, the relay moves from Postmark to Resend (Sami).
 
 Phase 1 makes Muslim Quotient one private account across muslimquotient.com, istighfar.club and Mohasaba, with a "Sign up with Muslim Quotient" option inside both, and a dashboard that shows what each one adds. istighfar.club and Mohasaba connect exactly as any outside platform would, through the developer portal and the public developer guide, so every gap is found and fixed before a real partner arrives.
 
@@ -72,7 +72,7 @@ Five parts. We own and run the sign-in service; the rest sits on managed service
 | Muslim Quotient database | One new Supabase project, separate from Mohasaba (staging only: its own `mq` schema inside mohasaba-staging, see DECISIONS.md) | Postgres with row-level security | Keeps Muslim Quotient's records apart from each product's own data |
 | Record service | `api.muslimquotient.com` | Next.js route handlers on Vercel | Checks the platform's token and the person's permission, then saves the entry |
 | Dashboard and developer portal | `muslimquotient.com`, `developers.muslimquotient.com` | Next.js on Vercel | Same stack as Mohasaba, so one way of working |
-| Email | Login codes and relay | Resend for codes (already used by istighfar.club), plus a relay on Postmark inbound routing that forwards mail | Codes on their own sending subdomain; no open or click tracking |
+| Email | Login codes and relay | Resend for both: codes (already used by istighfar.club), and the relay, which receives mail for `relay.muslimquotient.com` and forwards it (changed 9 October 2026 from Postmark, Sami) | No open or click tracking on any sending domain |
 
 **How each product connects.** istighfar.club and Mohasaba each keep their own database and their own users table. They become ordinary clients of the sign-in service, exactly as an outside platform would. Each stores the private ID it receives (`mq_sub`) on its own user row. Nothing reads another product's database.
 
@@ -333,7 +333,7 @@ One repository per product. Give Claude Code this document and the developer gui
 4. Build the given-name generator and the 30-day rotation job.
 5. Build the dashboard screens from the design canvas, including merge accounts and the relays list under Privacy.
 6. Build notice sending to clients, signed with each client's secret, and the basic developer portal: register a platform, set redirect addresses and notice address, choose server or device sending, get keys.
-7. Build the email relay on Postmark inbound routing, and the status page.
+7. Build the email relay on Resend receiving (Postmark until 9 October 2026), and the status page.
 
 **istighfar-club**
 
@@ -376,7 +376,7 @@ One repository per product. Give Claude Code this document and the developer gui
 
 - [x] 1. Settled: our own sign-in service on node-oidc-provider, with Postgres in Supabase used only as the database. Ory Hydra is the fallback if relying on one main maintainer becomes a concern
 - [x] 2. Settled: the five questions belong to Mohasaba only. Muslim Quotient shows no questions at all, now or later
-- [x] 3. Settled: the email relay runs on Postmark
+- [x] 3. Settled: the email relay runs on Resend (Postmark until 9 October 2026)
 - [x] 4. Settled: Mohasaba keeps "Continue with Google" for now; Sign in with Muslim Quotient is added beside it in M4, and Google is removed later, once existing accounts have linked
 - [ ] 5. TJ: whether Practice may record counts, or only days kept
 - [ ] 6. Will the record format and sign-in rules be published as an open standard? Decide before the first partner conversation (Sami and TJ)

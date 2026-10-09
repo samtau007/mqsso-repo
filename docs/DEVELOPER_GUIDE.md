@@ -1,6 +1,6 @@
 # Muslim Quotient Developer Guide
 
-Version 1.8 · 9 October 2026 · draft for early partners. Addresses marked as examples will be confirmed before launch. Changes are listed at the end.
+Version 1.9 · 9 October 2026 · draft for early partners. Addresses marked as examples will be confirmed before launch. Changes are listed at the end.
 
 Add "Sign in with Muslim Quotient" to your platform using standard OpenID Connect, then bring your existing users across without losing their accounts or their history.
 
@@ -84,7 +84,7 @@ Ask only for what your platform uses. The person sees each permission in plain w
 
 **You never receive:** the person's phone number, real name, what other platforms they use, or anything another platform added to their record. Reading the record is not offered to platforms at all; only the person sees it.
 
-**Email:** with `email` you always get an address you can write to. If the person chose "Hide my email", it looks like `qc7f3a@relay.muslimquotient.com`. Mail you send there reaches the person's real inbox. Treat it exactly like a real address, and never try to find the real address behind it. The person sees your mail as coming from your platform's name "via Muslim Quotient", and replies go to your From address. Open and click tracking is removed. A person can switch a relay address off on their dashboard; mail to it is then dropped, so do not rely on it for anything the person must receive, and offer another way to reach you. Some people join Muslim Quotient with no email at all, using a passkey; you always get a relay address for them, and your mail waits in their Muslim Quotient inbox as plain text (no images, no attachments) for 30 days. Do not send them anything they must act on only by email.
+**Email:** with `email` you always get an address you can write to. If the person chose "Hide my email", it looks like `qc7f3a@relay.muslimquotient.com`. Mail you send there reaches the person's real inbox. Treat it exactly like a real address, and never try to find the real address behind it. The person sees your mail as coming from your platform's name "via Muslim Quotient", and replies go to your From address. Open and click tracking is removed, and attachments are not forwarded: link to anything you need to send. A person can switch a relay address off on their dashboard; mail to it is then dropped, so do not rely on it for anything the person must receive, and offer another way to reach you. Some people join Muslim Quotient with no email at all, using a passkey; you always get a relay address for them, and your mail waits in their Muslim Quotient inbox as plain text (no images, no attachments) for 30 days. Do not send them anything they must act on only by email.
 
 ## Bringing your existing users across
 
@@ -305,10 +305,11 @@ Review takes up to 10 working days.
 - [ ] The final addresses, rate limits, import limits and review time
 - [ ] Whether `mq.name` is offered, or platforms get no name at all
 - [ ] Minimum circle size: 30 is carried over from Mohasaba
-- [ ] What happens when a person switches a relay off (the relay runs on Postmark)
+- [ ] What happens when a person switches a relay off (the relay runs on Resend)
 
 ## Changes
 
+- **1.9 · 9 October 2026.** The relay runs on Resend instead of Postmark. Attachments sent to a relay address are not forwarded; send a link instead. Nothing else changes for your platform.
 - **1.8 · 9 October 2026.** People can join with no email. For them `email` is always a relay address, and its mail is kept as text in their Muslim Quotient inbox for 30 days.
 - **1.7 · 9 October 2026.** The relay is described: how forwarded mail looks, that tracking is removed, and that a person can switch a relay address off.
 - **1.6 · 9 October 2026.** Test mode replaces the separate sandbox: every platform starts in test mode with testers you list, test entries stay out of the picture and are cleared when the platform goes live. The go-live checklist is sent from the portal with "Ask for review". Platform details can be edited in the portal.

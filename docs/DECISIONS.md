@@ -4,6 +4,7 @@ One line per decision, newest first. Claude Code adds a line here whenever Sami 
 
 | Date | Decision | Who |
 | --- | --- | --- |
+| 2026-10-09 | Resend replaces Postmark: one email service for sign-in codes and the relay (receiving and forwarding). This replaces the 8 October decision on Postmark | Sami |
 | 2026-10-09 | Two ways to join, side by side: with an email (code), or with no email (a passkey, plus ten recovery codes shown once). No Google account is ever needed | Sami |
 | 2026-10-09 | People with no email get a private inbox on the dashboard for mail platforms send to their relay address: encrypted, text only, no attachments, deleted after 30 days (defaults proposed by Claude; Sami to confirm) | Sami |
 | 2026-10-09 | Prayer location: the person can press "Use my location" and allow the browser to share it; only the position rounded to two decimals (about a kilometre) is kept | Sami |
@@ -15,7 +16,7 @@ One line per decision, newest first. Claude Code adds a line here whenever Sami 
 | 2026-10-09 | The istighfar.club extension gets Sign in with Muslim Quotient; that work lives in the istighfar-club repository | Sami |
 | 2026-10-08 | Staging only: Muslim Quotient staging uses its own schema (`mq`, owned by role `mq_app`) inside the mohasaba-staging Supabase project, to stay on the free plan. Production Mohasaba and production Muslim Quotient each get their own project when bought | Sami |
 | 2026-10-08 | The five entry questions belong to Mohasaba only. Muslim Quotient shows no questions at all, now or later. "Create your ID" goes straight to sign-up; Reflection stays empty until Mohasaba connects in M4 | Sami |
-| 2026-10-08 | The email relay runs on Postmark | Sami |
+| 2026-10-08 | The email relay runs on Postmark (replaced on 9 October by Resend) | Sami |
 | 2026-10-08 | Mohasaba keeps "Continue with Google" for now; Sign in with Muslim Quotient is added beside it in M4; Google is removed later, once existing accounts have linked | Sami |
 | 2026-10-08 | Until the guide's open items are settled, build with the guide's defaults (circle size 30, `mq.name` offered) and flag each one when reached | Sami |
 | 2026-10-08 | Sign-in service is our own, built on node-oidc-provider; Supabase is used only as Postgres. Ory Hydra is the fallback | Sami |
